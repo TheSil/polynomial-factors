@@ -158,108 +158,105 @@ class CoeffAssumptions:
                 res += ", "
         return res
 
-class Rule:
+def apply_rules(assumptions, recursive=True):
+    #print(f"Applying rules to: {assumptions}")
+    changed = False
+    additional_assumptions = []
+    for k in range(assumptions.deg_C + 1):
+        open = []
+        closed = []
+        ones = []
+        zeroes = []
+        zero_or_one = []
+        for i in range(max(0, k - assumptions.deg_B), min(assumptions.deg_A, k) + 1):
+            # a_i * b_j
+            j= k-i
+            ab_assumption = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+            if (ab_assumption.assumed_type == ASSUMED_0):
+                zeroes.append(i)
+            elif (ab_assumption.assumed_type == ASSUMED_1):
+                ones.append(i)
+            elif (ab_assumption.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1):
+                open.append(i)
+            elif (ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                closed.append(i)
+            elif (ab_assumption.assumed_type == ASSUMED_0_OR_1):
+                zero_or_one.append(zero_or_one)
+            else:
+                raise Exception("Unknown assumed type")
 
-    def apply(self, assumptions, recursive=True):
-        #print(f"Applying rules to: {assumptions}")
-        changed = False
-        additional_assumptions = []
-        for k in range(assumptions.deg_C + 1):
-            open = []
-            closed = []
-            ones = []
-            zeroes = []
-            zero_or_one = []
-            for i in range(max(0, k - assumptions.deg_B), min(assumptions.deg_A, k) + 1):
-                # a_i * b_j
-                j= k-i
-                ab_assumption = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if (ab_assumption.assumed_type == ASSUMED_0):
-                    zeroes.append(i)
-                elif (ab_assumption.assumed_type == ASSUMED_1):
-                    ones.append(i)
-                elif (ab_assumption.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1):
-                    open.append(i)
-                elif (ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                    closed.append(i)
-                elif (ab_assumption.assumed_type == ASSUMED_0_OR_1):
-                    zero_or_one.append(zero_or_one)
-                else:
-                    raise Exception("Unknown assumed type")
-
-            if len(open) == 1:
-                if len(closed) == 0:
-                    # exactly one of summands is in (0,1) and rest gives an integer together
-                    raise Contradiction()
-
-                # otherwise at least one of the other coefficients must be in (0,1)
-                # TBD
-
-            if len(open) == 1 and len(closed) == 1:
-                # exactly one of summands is in (0,1),  rest gives an integer together EXCEPT for one coefficient
-                # then that coefficients must be in (0,1) too, which means both a_i and b_j in it must be (0,1) or 1
-                i = closed[0]
-                j = k - i
-                product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1):
-                    changed = True
-
-            if len(ones) > 1:
+        if len(open) == 1:
+            if len(closed) == 0:
+                # exactly one of summands is in (0,1) and rest gives an integer together
                 raise Contradiction()
 
-            if len(ones) == 1:
-                # there is 1 in summands, all other terms must be 0
-                for i in range(max(0, k - assumptions.deg_B ), min(assumptions.deg_A, k) + 1):
-                    if i != ones[0]:
-                        # a_i * b_j
-                        j = k - i
-                        product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                        if product.adjust(ASSUMED_0):
-                            changed = True
-                        else:
-                            if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
-                              and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
-                                additional_assumptions.append((i,j,k,ASSUMED_0))
+            # otherwise at least one of the other coefficients must be in (0,1)
+            # TBD
 
-        if not changed and recursive:
-            # try if additional assumptions fall through
-            for (i,j,k,assumed) in additional_assumptions:
-                if assumed == ASSUMED_0:
-                    if assumptions.assumed_a[i].assumed_type not in (ASSUMED_1, ASSUMED_0):
-                        tmp_assumptions = deepcopy(assumptions)
-                        tmp_assumptions.assumed_a[i].adjust(ASSUMED_0)
-                        #print(f"assuming a_{i}=0")
-                        try:
-                            while self.apply(tmp_assumptions, recursive=False):
-                                pass
-                        except Contradiction as e:
-                            # a_i cannot be 0, so b_j must be
-                            assumptions.assumed_b[j].adjust(ASSUMED_0)
-                            changed=True
-                            break
+        if len(open) == 1 and len(closed) == 1:
+            # exactly one of summands is in (0,1),  rest gives an integer together EXCEPT for one coefficient
+            # then that coefficients must be in (0,1) too, which means both a_i and b_j in it must be (0,1) or 1
+            i = closed[0]
+            j = k - i
+            product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+            if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1):
+                changed = True
 
-                    if assumptions.assumed_b[j].assumed_type not in (ASSUMED_1, ASSUMED_0):
-                        tmp_assumptions = deepcopy(assumptions)
-                        tmp_assumptions.assumed_b[j].adjust(ASSUMED_0)
-                        #print(f"assuming b_{j}=0")
-                        try:
-                            while self.apply(tmp_assumptions, recursive=False):
-                                pass
-                        except Contradiction as e:
-                            # b_j cannot be 0, so a_i must be
-                            assumptions.assumed_a[i].adjust(ASSUMED_0)
-                            changed=True
-                            break
+        if len(ones) > 1:
+            raise Contradiction()
 
-        return changed
+        if len(ones) == 1:
+            # there is 1 in summands, all other terms must be 0
+            for i in range(max(0, k - assumptions.deg_B ), min(assumptions.deg_A, k) + 1):
+                if i != ones[0]:
+                    # a_i * b_j
+                    j = k - i
+                    product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                    if product.adjust(ASSUMED_0):
+                        changed = True
+                    else:
+                        if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
+                          and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
+                            additional_assumptions.append((i,j,k,ASSUMED_0))
+
+    if not changed and recursive:
+        # try if additional assumptions fall through
+        for (i,j,k,assumed) in additional_assumptions:
+            if assumed == ASSUMED_0:
+                if assumptions.assumed_a[i].assumed_type not in (ASSUMED_1, ASSUMED_0):
+                    tmp_assumptions = deepcopy(assumptions)
+                    tmp_assumptions.assumed_a[i].adjust(ASSUMED_0)
+                    #print(f"assuming a_{i}=0")
+                    try:
+                        while apply_rules(tmp_assumptions, recursive=False):
+                            pass
+                    except Contradiction as e:
+                        # a_i cannot be 0, so b_j must be
+                        assumptions.assumed_b[j].adjust(ASSUMED_0)
+                        changed=True
+                        break
+
+                if assumptions.assumed_b[j].assumed_type not in (ASSUMED_1, ASSUMED_0):
+                    tmp_assumptions = deepcopy(assumptions)
+                    tmp_assumptions.assumed_b[j].adjust(ASSUMED_0)
+                    #print(f"assuming b_{j}=0")
+                    try:
+                        while apply_rules(tmp_assumptions, recursive=False):
+                            pass
+                    except Contradiction as e:
+                        # b_j cannot be 0, so a_i must be
+                        assumptions.assumed_a[i].adjust(ASSUMED_0)
+                        changed=True
+                        break
+
+    return changed
 
 
 def check2(a, b):
     assumptions = CoeffAssumptions(a, b)
-    rule = Rule()
 
     try:
-        while rule.apply(assumptions, recursive=False):
+        while apply_rules(assumptions, recursive=False):
             pass
     except Contradiction as e:
         return True
@@ -270,7 +267,7 @@ def check2(a, b):
         try:
             tmp_assumptions = deepcopy(assumptions)
             tmp_assumptions.assumed_a[i].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1)
-            while rule.apply(tmp_assumptions):
+            while apply_rules(tmp_assumptions):
                 pass
             print(f"Failed to find contradiction for n={n},a={a},b={b} when assuming a_{i} in (0,1)")
             print(tmp_assumptions)
