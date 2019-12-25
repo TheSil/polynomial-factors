@@ -10,6 +10,9 @@ ASSUMED_1 = 4
 ASSUMED_0_OR_1 = 5
 
 class Assumption:
+    pass
+
+class RawAssumption(Assumption):
     def __init__(self, assumed_type):
         self.assumed_type = assumed_type
 
@@ -47,56 +50,60 @@ class Assumption:
 
         raise Exception("Unknown new assumption type")
 
+class MultipliedAssumptions2(Assumption):
 
-def multiply_assumed(a,b):
-    if a.assumed_type==ASSUMED_0 or b.assumed_type==ASSUMED_0:
-        return Assumption(ASSUMED_0)
-    if a.assumed_type==ASSUMED_1: return copy(b)
-    if b.assumed_type==ASSUMED_1: return copy(a)
-    if a.assumed_type==ASSUMED_CLOSED_INTERVAL_0_TO_1: return copy(b)
-    if b.assumed_type==ASSUMED_CLOSED_INTERVAL_0_TO_1: return copy(a)
-    if a.assumed_type==ASSUMED_OPEN_INTERVAL_0_TO_1 and b.assumed_type==ASSUMED_OPEN_INTERVAL_0_TO_1:
-        return Assumption(ASSUMED_OPEN_INTERVAL_0_TO_1)
-    if a.assumed_type==ASSUMED_0_OR_1 and b.assumed_type==ASSUMED_0_OR_1:
-        return Assumption(ASSUMED_0_OR_1)
-    # only remaining case is {0,1} * (0,1), which can be anything in [0,1), we abuse [0,1] for it
-    return Assumption(ASSUMED_CLOSED_INTERVAL_0_TO_1)
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
 
-def adjust_product(a, b, product):
-    # this function propagates product assumption into multiplicands if possible
-    # e.g. 1*a in (0,1) implies that a in (0,1)
-    if product == ASSUMED_OPEN_INTERVAL_0_TO_1:
-        if (a.assumed_type == ASSUMED_1):
-            # 1*b in (0,1) implies that b in (0,1)
-            return b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1)
-        elif (b.assumed_type == ASSUMED_1):
-            # a*1 in (0,1) implies that a in (0,1)
-            return a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1)
-        if a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
-                or b.assumed_type == (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
-            # a in {0,1} * b in {0,1} cannot give c in (0,1)
-            raise Contradiction()
+    def adjust(self, product):
+        # this function propagates product assumption into multiplicands if possible
+        # e.g. 1*a in (0,1) implies that a in (0,1)
+        if product == ASSUMED_OPEN_INTERVAL_0_TO_1:
+            if (self.a.assumed_type == ASSUMED_1):
+                # 1*b in (0,1) implies that b in (0,1)
+                return self.b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1)
+            elif (self.b.assumed_type == ASSUMED_1):
+                # a*1 in (0,1) implies that a in (0,1)
+                return self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1)
+            if self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
+                    or self.b.assumed_type == (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
+                # a in {0,1} * b in {0,1} cannot give c in (0,1)
+                raise Contradiction()
 
-    elif product == ASSUMED_0:
-        # one of multiplicands must be 0, couple contradictions here
-        if a.assumed_type == ASSUMED_0 \
-            or b.assumed_type == ASSUMED_0:
-            return False
+        elif product == ASSUMED_0:
+            # one of multiplicands must be 0, couple contradictions here
+            if self.a.assumed_type == ASSUMED_0 \
+                    or self.b.assumed_type == ASSUMED_0:
+                return False
 
-        if a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1) \
-            and b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-            raise Contradiction()
+            if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1) \
+                    and self.b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
+                raise Contradiction()
 
-        if a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-            b.adjust(ASSUMED_0)
+            if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
+                self.b.adjust(ASSUMED_0)
 
-        if b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-            a.adjust(ASSUMED_0)
+            if self.b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
+                self.a.adjust(ASSUMED_0)
 
+        return False
+        # TODO: remaining product types
 
-    return False
-    # TODO: remaining product types
-
+    @property
+    def assumed_type(self):
+        if self.a.assumed_type == ASSUMED_0 or self.b.assumed_type == ASSUMED_0:
+            return ASSUMED_0
+        if self.a.assumed_type == ASSUMED_1: return self.b.assumed_type
+        if self.b.assumed_type == ASSUMED_1: return self.a.assumed_type
+        if self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1: return self.b.assumed_type
+        if self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1: return self.a.assumed_type
+        if self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+            return ASSUMED_OPEN_INTERVAL_0_TO_1
+        if self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_0_OR_1:
+            return ASSUMED_0_OR_1
+        # only remaining case is {0,1} * (0,1), which can be anything in [0,1), we abuse [0,1] for it
+        return ASSUMED_CLOSED_INTERVAL_0_TO_1
 
 class CoeffAssumptions:
 
@@ -108,19 +115,19 @@ class CoeffAssumptions:
         self.assumed_b = []
         #self.assumed_c = []
         for i in range(self.deg_A + 1 + 1):
-            self.assumed_a.append(Assumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
+            self.assumed_a.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
         for i in range(self.deg_B + 1 + 1):
-            self.assumed_b.append(Assumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
+            self.assumed_b.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
         # for i in range(self.deg_C + 1 + 1):
-        #     self.assumed_c.append(Assumption(ASSUMED_0_OR_1))
+        #     self.assumed_c.append(RawAssumption(ASSUMED_0_OR_1))
         # monic polynomials
-        self.assumed_a[self.deg_A] = Assumption(ASSUMED_1)
-        self.assumed_b[self.deg_B] = Assumption(ASSUMED_1)
-        # self.assumed_c[self.deg_C] = Assumption(ASSUMED_1)
+        self.assumed_a[self.deg_A] = RawAssumption(ASSUMED_1)
+        self.assumed_b[self.deg_B] = RawAssumption(ASSUMED_1)
+        # self.assumed_c[self.deg_C] = RawAssumption(ASSUMED_1)
         # we can safely assume that constant coefficients are 1
-        self.assumed_a[0] = Assumption(ASSUMED_1)
-        self.assumed_b[0] = Assumption(ASSUMED_1)
-        # self.assumed_c[0] = Assumption(ASSUMED_1)
+        self.assumed_a[0] = RawAssumption(ASSUMED_1)
+        self.assumed_b[0] = RawAssumption(ASSUMED_1)
+        # self.assumed_c[0] = RawAssumption(ASSUMED_1)
 
     def __str__(self):
         # print all the non-trivial assumptions
@@ -166,7 +173,7 @@ class Rule:
             for i in range(max(0, k - assumptions.deg_B), min(assumptions.deg_A, k) + 1):
                 # a_i * b_j
                 j= k-i
-                ab_assumption = multiply_assumed(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                ab_assumption = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
                 if (ab_assumption.assumed_type == ASSUMED_0):
                     zeroes.append(i)
                 elif (ab_assumption.assumed_type == ASSUMED_1):
@@ -193,7 +200,8 @@ class Rule:
                 # then that coefficients must be in (0,1) too, which means both a_i and b_j in it must be (0,1) or 1
                 i = closed[0]
                 j = k - i
-                if adjust_product(assumptions.assumed_a[i], assumptions.assumed_b[j], ASSUMED_OPEN_INTERVAL_0_TO_1):
+                product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1):
                     changed = True
 
             if len(ones) > 1:
@@ -205,7 +213,8 @@ class Rule:
                     if i != ones[0]:
                         # a_i * b_j
                         j = k - i
-                        if adjust_product(assumptions.assumed_a[i], assumptions.assumed_b[j], ASSUMED_0):
+                        product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                        if product.adjust(ASSUMED_0):
                             changed = True
                         else:
                             if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
@@ -284,7 +293,7 @@ def check(n):
     return result
 
 n = 5#5
-while n < 30:
+while n < 20:
     print("Checking n =",n)
     if not check(n):
         print("Counterexample possible for n =",n)
