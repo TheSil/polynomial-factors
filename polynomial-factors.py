@@ -13,8 +13,9 @@ class Assumption:
     pass
 
 class RawAssumption(Assumption):
-    def __init__(self, assumed_type):
+    def __init__(self, assumed_type, name):
         self.assumed_type = assumed_type
+        self.name = name
 
     def adjust(self, new_assumed_type):
         if self.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
@@ -115,18 +116,18 @@ class CoeffAssumptions:
         self.assumed_b = []
         #self.assumed_c = []
         for i in range(self.deg_A + 1 + 1):
-            self.assumed_a.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
+            self.assumed_a.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"a_{i}"))
         for i in range(self.deg_B + 1 + 1):
-            self.assumed_b.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1))
+            self.assumed_b.append(RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"b_{i}"))
         # for i in range(self.deg_C + 1 + 1):
         #     self.assumed_c.append(RawAssumption(ASSUMED_0_OR_1))
         # monic polynomials
-        self.assumed_a[self.deg_A] = RawAssumption(ASSUMED_1)
-        self.assumed_b[self.deg_B] = RawAssumption(ASSUMED_1)
+        self.assumed_a[self.deg_A].adjust(ASSUMED_1)
+        self.assumed_b[self.deg_B].adjust(ASSUMED_1)
         # self.assumed_c[self.deg_C] = RawAssumption(ASSUMED_1)
         # we can safely assume that constant coefficients are 1
-        self.assumed_a[0] = RawAssumption(ASSUMED_1)
-        self.assumed_b[0] = RawAssumption(ASSUMED_1)
+        self.assumed_a[0].adjust(ASSUMED_1)
+        self.assumed_b[0].adjust(ASSUMED_1)
         # self.assumed_c[0] = RawAssumption(ASSUMED_1)
 
     def __str__(self):
@@ -161,7 +162,9 @@ class CoeffAssumptions:
 def apply_rules(assumptions, recursive=True):
     #print(f"Applying rules to: {assumptions}")
     changed = False
-    additional_assumptions = []
+    # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
+    # link all references in temporary instances
+    assumptions.additional_assumptions = []
     for k in range(assumptions.deg_C + 1):
         open = []
         closed = []
@@ -217,37 +220,32 @@ def apply_rules(assumptions, recursive=True):
                     else:
                         if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
                           and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
-                            additional_assumptions.append((i,j,k,ASSUMED_0))
+                            assumptions.additional_assumptions.append(((assumptions.assumed_a[i],assumptions.assumed_b[j]),ASSUMED_0))
 
     if not changed and recursive:
         # try if additional assumptions fall through
-        for (i,j,k,assumed) in additional_assumptions:
-            if assumed == ASSUMED_0:
-                if assumptions.assumed_a[i].assumed_type not in (ASSUMED_1, ASSUMED_0):
-                    tmp_assumptions = deepcopy(assumptions)
-                    tmp_assumptions.assumed_a[i].adjust(ASSUMED_0)
-                    #print(f"assuming a_{i}=0")
-                    try:
-                        while apply_rules(tmp_assumptions, recursive=False):
+        for idx_assumptions, (assumed_list, assumed) in enumerate(assumptions.additional_assumptions):
+            # at least one of the items in assumed list must be as said "assumed", try them one by one
+            viable = []
+            for idx, assumption in enumerate(assumed_list):
+                if assumed == ASSUMED_0:
+                    if assumption.assumed_type not in (ASSUMED_1, ASSUMED_0):
+                        tmp_assumptions = deepcopy(assumptions)
+                        # since this is a copy, we need to link to its objects!
+                        tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].adjust(ASSUMED_0)
+                        try:
+                            while apply_rules(tmp_assumptions, recursive=False):
+                                pass
+                            viable.append(idx)
+                        except Contradiction as e:
                             pass
-                    except Contradiction as e:
-                        # a_i cannot be 0, so b_j must be
-                        assumptions.assumed_b[j].adjust(ASSUMED_0)
-                        changed=True
-                        break
+            if len(viable) == 0:
+                # not possible
+                raise Contradiction()
 
-                if assumptions.assumed_b[j].assumed_type not in (ASSUMED_1, ASSUMED_0):
-                    tmp_assumptions = deepcopy(assumptions)
-                    tmp_assumptions.assumed_b[j].adjust(ASSUMED_0)
-                    #print(f"assuming b_{j}=0")
-                    try:
-                        while apply_rules(tmp_assumptions, recursive=False):
-                            pass
-                    except Contradiction as e:
-                        # b_j cannot be 0, so a_i must be
-                        assumptions.assumed_a[i].adjust(ASSUMED_0)
-                        changed=True
-                        break
+            if len(viable) == 1:
+                # that one must satisfy the assumption
+                assumed_list[viable[0]].adjust(ASSUMED_0)
 
     return changed
 
