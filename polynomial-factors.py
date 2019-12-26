@@ -10,7 +10,7 @@ ASSUMED_0 = 3
 ASSUMED_1 = 4
 ASSUMED_0_OR_1 = 5
 
-report_enabled = False
+report_enabled = True
 
 
 def assumed_type_str(assumed_type):
@@ -104,9 +104,16 @@ class MultipliedAssumptions2(Assumption):
                 # a*1 in (0,1) implies that a in (0,1)
                 report(level, f"{self.name} in (0,1), but {assumption_str(self.a)} and {assumption_str(self.b)} =>")
                 return self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
-
-            # TODO: {0,1} * (0,1) in (0,1) implies first coefficient must be 1
-
+            elif self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
+                    and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                # {0,1} * (0,1) in (0,1) implies first coefficient must be 1
+                report(level, f"{self.name} in (0,1), but {assumption_str(self.a)} and {assumption_str(self.b)} =>")
+                return self.a.adjust(ASSUMED_1, level + 1)
+            elif self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 \
+                    and self.b.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
+                # (0,1) * {0,1} in (0,1) implies second coefficient must be 1
+                report(level, f"{self.name} in (0,1), but {assumption_str(self.a)} and {assumption_str(self.b)} =>")
+                return self.b.adjust(ASSUMED_1, level + 1)
             if self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
                     and self.b.assumed_type == (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
                 # a in {0,1} * b in {0,1} cannot give c in (0,1)
@@ -280,28 +287,28 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
                 msg += assumed_type_str(assumed)
                 if idx != len(assumed_list) - 1 :
                     msg += " or "
+            report(level, msg)
             for idx, assumption in enumerate(assumed_list):
                 #if assumption.assumed_type not in (ASSUMED_1, ASSUMED_0):
                 tmp_assumptions = deepcopy(assumptions)
                 try:
                     # since this is a copy, we need to link to its objects!
-                    tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].adjust(assumed, level)
+                    report(level, f"Assuming {tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].name} {assumed_type_str(assumed)}")
+                    tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].adjust(assumed, level+1)
                     while apply_rules(tmp_assumptions, recursive=False, do_print=False, level=level+1):
                         pass
+                    report(level+1, f"No contradiction")
                     viable.append(idx)
                 except Contradiction as e:
                     pass
             if len(viable) == 0:
                 # not possible
-                msg += " => contradiction"
-                report(level, msg)
+                report(level, "All possibilities lead to contradiciton => contradiction")
                 raise Contradiction()
 
             if len(viable) == 1:
                 # that one must satisfy the assumption
-                msg += f" => {assumed_list[viable[0]].name} "
-                msg += assumed_type_str(assumed)
-                report(level, msg)
+                report(level, f"Exactly one possibility yields no contradiction => {assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
                 assumed_list[viable[0]].adjust(assumed, level)
 
     return changed
@@ -328,7 +335,7 @@ def check2(a, b):
                 pass
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming a_{i} in (0,1)")
             print("", tmp_assumptions)
-            #return False # uncomment this to see all fails for given degree
+            return False # uncomment this to see all fails for given degree
         except Contradiction as e:
             pass
 
@@ -342,18 +349,15 @@ def check(n):
     for deg_a in range(2,n//2 + 1):
         deg_b = n - deg_a
         if not check2(deg_a, deg_b):
-            print(f" Failed to find contradiction for n={n},a={deg_a},b={deg_b}")
             result = False
-            #break # uncomment this to see all fails for given degree
+            break # uncomment this to see all fails for given degree
     return result
 
-n = 5#5
-while n < 40:
+for n in range(17, 17+1):
     print(f"Checking deg R={n}")
     if not check(n):
-        print("Counterexample possible for n =",n)
+        print("Counterexample possible for n =", n)
     print()
-    n += 1
 
 
 
