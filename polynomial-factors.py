@@ -50,43 +50,29 @@ class RawAssumption(Assumption):
             return False
 
         if self.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
-            self.assumed_type = new_assumed_type
-            report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
-            return True
+            pass
+        elif new_assumed_type == ASSUMED_0_OR_1:
+            if self.assumed_type not in (ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                report(level, f"Since {self} = > contradiction")
+                raise Contradiction()
+        elif new_assumed_type == ASSUMED_0:
+            if self.assumed_type not in (ASSUMED_0, ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                report(level, f"Since {self} = > contradiction")
+                raise Contradiction()
+        elif new_assumed_type == ASSUMED_1:
+            if self.assumed_type not in (ASSUMED_1, ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                report(level, f"Since {self} = > contradiction")
+                raise Contradiction()
+        elif new_assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+            if self.assumed_type not in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                report(level, f"Since {self} = > contradiction")
+                raise Contradiction()
+        else:
+            raise Exception("Unknown new assumption type")
 
-        if new_assumed_type == ASSUMED_0_OR_1:
-            if self.assumed_type in (ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                self.assumed_type = new_assumed_type
-                report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
-                return True
-            report(level, f"Since {self} = > contradiction")
-            raise Contradiction()
-
-        if new_assumed_type == ASSUMED_0:
-            if self.assumed_type in (ASSUMED_0, ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                self.assumed_type = new_assumed_type
-                report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
-                return True
-            report(level, f"Since {self} = > contradiction")
-            raise Contradiction()
-
-        if new_assumed_type == ASSUMED_1:
-            if self.assumed_type in (ASSUMED_1, ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                self.assumed_type = new_assumed_type
-                report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
-                return True
-            report(level, f"Since {self} = > contradiction")
-            raise Contradiction()
-
-        if new_assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
-            if self.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                self.assumed_type = new_assumed_type
-                report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
-                return True
-            report(level, f"Since {self} = > contradiction")
-            raise Contradiction()
-
-        raise Exception("Unknown new assumption type")
+        self.assumed_type = new_assumed_type
+        report(level, f"Then {self.name} {assumed_type_str(new_assumed_type)}")
+        return True
 
     def __str__(self):
         return self.name + " " + assumed_type_str(self.assumed_type)
@@ -103,34 +89,38 @@ class MultipliedAssumptions2(Assumption):
         # this function propagates product assumption into multiplicands if possible
         # e.g. 1*a in (0,1) implies that a in (0,1)
         if product == ASSUMED_OPEN_INTERVAL_0_TO_1:
-            if (self.a.assumed_type == ASSUMED_1):
-                # 1*b in (0,1) implies that b in (0,1)
-                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
-                return self.b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
-            elif (self.b.assumed_type == ASSUMED_1):
-                # a*1 in (0,1) implies that a in (0,1)
-                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
-                return self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
-            elif self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
-                    and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
-                # {0,1} * (0,1) in (0,1) implies first coefficient must be 1
-                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
-                return self.a.adjust(ASSUMED_1, level + 1)
-            elif self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 \
-                    and self.b.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
-                # (0,1) * {0,1} in (0,1) implies second coefficient must be 1
-                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
-                return self.b.adjust(ASSUMED_1, level + 1)
             if self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
                     and self.b.assumed_type == (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
                 # a in {0,1} * b in {0,1} cannot give c in (0,1)
                 report(level, f"{self.name} in (0,1), but {self.a} and {self.b} => contradiction")
                 raise Contradiction()
 
+            if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
+                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} => contradiction")
+                raise Contradiction()
+
+            if self.a.assumed_type not in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1) \
+                    or self.b.assumed_type not in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
+                report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
+                if (self.a.assumed_type == ASSUMED_1):
+                    # 1*b in (0,1) implies that b in (0,1)
+                    return self.b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
+                elif (self.b.assumed_type == ASSUMED_1):
+                    # a*1 in (0,1) implies that a in (0,1)
+                    return self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
+                elif self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
+                        and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                    # {0,1} * (0,1) in (0,1) implies first coefficient must be 1
+                    return self.a.adjust(ASSUMED_1, level + 1)
+                elif self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 \
+                        and self.b.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
+                    # (0,1) * {0,1} in (0,1) implies second coefficient must be 1
+                    return self.b.adjust(ASSUMED_1, level + 1)
+                else:
+                    raise Exception("Unhandled product (0,1) assumption combination")
         elif product == ASSUMED_0:
             # one of multiplicands must be 0, couple contradictions here
-            if self.a.assumed_type == ASSUMED_0 \
-                    or self.b.assumed_type == ASSUMED_0:
+            if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
                 return False
 
             if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1) \
@@ -138,14 +128,11 @@ class MultipliedAssumptions2(Assumption):
                 report(level, f"{self.name} = 0, but {self.a} and {self.b} => contradiction")
                 raise Contradiction()
 
+            report(level, f"{self.name} = 0, but {self.a} and {self.b} =>")
             if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-                report(level, f"{self.name} = 0, but {self.a} and {self.b} =>")
                 self.b.adjust(ASSUMED_0, level + 1)
-
             if self.b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-                report(level, f"{self.name} = 0, but {self.a} and {self.b} =>")
                 self.a.adjust(ASSUMED_0, level + 1)
-
         else:
             # TODO: remaining product types
             raise Exception("Unsupported multiplication output type")
@@ -154,12 +141,16 @@ class MultipliedAssumptions2(Assumption):
 
     @property
     def assumed_type(self):
-        if self.a.assumed_type == ASSUMED_0 or self.b.assumed_type == ASSUMED_0:
+        if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
             return ASSUMED_0
-        if self.a.assumed_type == ASSUMED_1: return self.b.assumed_type
-        if self.b.assumed_type == ASSUMED_1: return self.a.assumed_type
-        if self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1: return self.b.assumed_type
-        if self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1: return self.a.assumed_type
+        if self.a.assumed_type == ASSUMED_1:
+            return self.b.assumed_type
+        if self.b.assumed_type == ASSUMED_1:
+            return self.a.assumed_type
+        if self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+            return self.b.assumed_type
+        if self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+            return self.a.assumed_type
         if self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
             return ASSUMED_OPEN_INTERVAL_0_TO_1
         if self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_0_OR_1:
@@ -195,19 +186,14 @@ class PolynomialProductAssumptions:
         res = ""
         for i in range(1, self.deg_A):
             if self.assumed_a[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
-                res += f"a_{i} "
-                res += assumed_type_str(self.assumed_a[i].assumed_type)
-                res += ", "
+                res += f"{self.assumed_a[i]}, "
         for i in range(1, self.deg_B):
             if self.assumed_b[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
-                res += f"b_{i} "
-                res += assumed_type_str(self.assumed_b[i].assumed_type)
-                res += ", "
+                res += f"{self.assumed_b[i]}, "
         return res
 
 
 def apply_rules(assumptions, recursive=True, level=1):
-    # print(f"Applying rules to: {assumptions}")
     changed = False
     # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
     # link all references in temporary instances
@@ -251,11 +237,12 @@ def apply_rules(assumptions, recursive=True, level=1):
                 i_open = open[0]
                 j_open = k - i_open
                 report(level,
-                       f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the only is the only possible non-integer coeff  => a_{i}*b_{j} in (0,1)")
+                       f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the "
+                       f"only is the only possible non-integer coeff  => a_{i}*b_{j} in (0,1)")
                 product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
                 if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1):
                     changed = True
-            else:  # len(closed) > 1
+            else:
                 # one of other summands must be in (0,1)
                 summands = []
                 for i in closed:
@@ -303,7 +290,6 @@ def apply_rules(assumptions, recursive=True, level=1):
                     msg += " or "
             report(level, msg)
             for idx, assumption in enumerate(assumed_list):
-                # if assumption.assumed_type not in (ASSUMED_1, ASSUMED_0):
                 tmp_assumptions = deepcopy(assumptions)
                 try:
                     # since this is a copy, we need to link to its objects!
@@ -323,7 +309,8 @@ def apply_rules(assumptions, recursive=True, level=1):
 
             if len(viable) == 1:
                 # that one must satisfy the assumption
-                report(level, f"Exactly one possibility yields no contradiction => {assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
+                report(level, f"Exactly one possibility yields no contradiction => "
+                f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
                 assumed_list[viable[0]].adjust(assumed, level)
 
     return changed
@@ -366,7 +353,7 @@ def check2(a, b):
                 pass
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming a_{i} in (0,1)")
             print("", tmp_assumptions)
-            return False  # uncomment this to see all fails for given degree
+            return False  # comment this to see all fails for given degree
         except Contradiction as e:
             pass
 
@@ -382,7 +369,7 @@ def check(n):
         deg_b = n - deg_a
         if not check2(deg_a, deg_b):
             result = False
-            break  # uncomment this to see all fails for given degree
+            break  # comment this to see all fails for given degree
     return result
 
 
