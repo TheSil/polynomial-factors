@@ -196,7 +196,7 @@ class PolynomialProductAssumptions:
                 res += ", "
         return res
 
-def apply_rules(assumptions, recursive=True, do_print=True, level=1):
+def apply_rules(assumptions, recursive=True, level=1):
     #print(f"Applying rules to: {assumptions}")
     changed = False
     # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
@@ -228,10 +228,9 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
         if len(open) == 1:
             if len(closed) == 0:
                 # exactly one of summands is in (0,1) and rest gives an integer together
-                if do_print:
-                    i = open[0]
-                    j = k - i
-                    report(level, f"Term a_{i}*b_{j} is the only non-integer coefficient at coeff [x^{k}](R(x)) => contradiction")
+                i = open[0]
+                j = k - i
+                report(level, f"Term a_{i}*b_{j} is the only non-integer coefficient at coeff [x^{k}](R(x)) => contradiction")
                 raise Contradiction()
             elif len(closed) == 1:
                 # exactly one of summands is in (0,1),  rest gives an integer together EXCEPT for one coefficient
@@ -240,8 +239,7 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
                 j = k - i
                 i_open = open[0]
                 j_open =  k - i_open
-                if do_print:
-                     report(level, f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the only is the only possible non-integer coeff  => a_{i}*b_{j} in (0,1)")
+                report(level, f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the only is the only possible non-integer coeff  => a_{i}*b_{j} in (0,1)")
                 product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
                 if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1):
                     changed = True
@@ -254,22 +252,22 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
                 assumptions.additional_assumptions.append((summands, ASSUMED_OPEN_INTERVAL_0_TO_1))
 
         if len(ones) > 1:
-            if do_print:
-                i1 = ones[0]
-                j1 = k - i1
-                i2 = ones[1]
-                j2 = k - i2
-                report(level, f"Coeff [x^{k}](R(x)) >= a_{i1}*b_{j1} + a_{i2}*b_{j2} >= 1 + 1 => contradiction")
+            i1 = ones[0]
+            j1 = k - i1
+            i2 = ones[1]
+            j2 = k - i2
+            report(level, f"Coeff [x^{k}](R(x)) >= a_{i1}*b_{j1} + a_{i2}*b_{j2} >= 1 + 1 => contradiction")
             raise Contradiction()
 
         if len(ones) == 1:
             # there is 1 in summands, all other terms must be 0
+            report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other coeffs must equal 0")
             for i in range(max(0, k - assumptions.deg_B ), min(assumptions.deg_A, k) + 1):
                 if i != ones[0]:
                     # a_i * b_j
                     j = k - i
                     product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                    if product.adjust(ASSUMED_0, level):
+                    if product.adjust(ASSUMED_0, level + 1):
                         changed = True
                     else:
                         if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
@@ -295,7 +293,7 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
                     # since this is a copy, we need to link to its objects!
                     report(level, f"Assuming {tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].name} {assumed_type_str(assumed)}")
                     tmp_assumptions.additional_assumptions[idx_assumptions][0][idx].adjust(assumed, level+1)
-                    while apply_rules(tmp_assumptions, recursive=False, do_print=False, level=level+1):
+                    while apply_rules(tmp_assumptions, recursive=False, level=level+1):
                         pass
                     report(level+1, f"No contradiction")
                     viable.append(idx)
@@ -315,7 +313,23 @@ def apply_rules(assumptions, recursive=True, do_print=True, level=1):
 
 
 def check2(a, b):
-    report(1, f"Assuming deg P={a}, deg Q={b}")
+    report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
+    poly_str = ""
+    for i in range(a+1):
+        poly_str += f"a_{i}"
+        if i != 0:
+            poly_str += f"*x^{i}"
+        if i != a:
+            poly_str += "+"
+    report(1, f"P(x)={poly_str}")
+    poly_str = ""
+    for i in range(b+1):
+        poly_str += f"b_{i}"
+        if i != 0:
+            poly_str += f"*x^{i}"
+        if i != b:
+            poly_str += "+"
+    report(1, f"Q(x)={poly_str}")
     assumptions = PolynomialProductAssumptions(a, b)
 
     try:
