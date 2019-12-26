@@ -264,7 +264,7 @@ def apply_rules(assumptions, recursive=True, level=1):
             min_i = max(0, k - assumptions.deg_B )
             max_i =  min(assumptions.deg_A, k)
             if max_i - min_i > 0:
-                report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other coeffs must equal 0")
+                report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other terms must equal 0")
                 for i in range(min_i, max_i + 1):
                     if i != ones[0]:
                         # a_i * b_j
@@ -370,11 +370,11 @@ def check(n):
             break # uncomment this to see all fails for given degree
     return result
 
-for n in range(5, 25+1):
+for n in range(18, 18+1):
     print(f"Checking deg R={n}")
     if not check(n):
         print("Counterexample not ruled out for n =", n)
-    print()
+    report(0,"")
 
 
 
