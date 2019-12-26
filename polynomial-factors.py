@@ -316,6 +316,72 @@ def apply_rules(assumptions, recursive=True, level=1):
 
     return changed
 
+def check_remaining_coeffs(assumptions, i):
+    for j in range(i+1, assumptions.deg_A):
+        can_be_open = False
+        can_be_zero_one = False
+
+        try:
+            tmp_assumptions2 = deepcopy(assumptions)
+            report(3, f"Assuming a_{j} in (0,1)")
+            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3)
+            while apply_rules(tmp_assumptions2, level=3):
+                pass
+            can_be_open = True
+        except Contradiction:
+            pass
+
+        try:
+            tmp_assumptions2 = deepcopy(assumptions)
+            report(3, f"Assuming a_{j} in {0, 1}")
+            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0_OR_1, 3)
+            while apply_rules(tmp_assumptions2, level=3):
+                pass
+            can_be_zero_one = True
+        except Contradiction:
+            pass
+
+        if not can_be_open and not can_be_zero_one:
+            raise Contradiction
+        elif can_be_open and not can_be_zero_one:
+            assumptions.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3)
+        elif not can_be_open and can_be_zero_one:
+            assumptions.assumed_a[j].adjust(ASSUMED_0_OR_1, 3)
+        else:
+            pass
+
+    for j in range(1, assumptions.deg_B):
+        can_be_open = False
+        can_be_zero_one = False
+
+        try:
+            tmp_assumptions2 = deepcopy(assumptions)
+            report(3, f"Assuming b_{j} in (0,1)")
+            tmp_assumptions2.assumed_b[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3)
+            while apply_rules(tmp_assumptions2, level=3):
+                pass
+            can_be_open = True
+        except Contradiction:
+            pass
+
+        try:
+            tmp_assumptions2 = deepcopy(assumptions)
+            report(3, f"Assuming b_{j} in {0, 1}")
+            tmp_assumptions2.assumed_b[j].adjust(ASSUMED_0_OR_1, 3)
+            while apply_rules(tmp_assumptions2, level=3):
+                pass
+            can_be_zero_one = True
+        except Contradiction:
+            pass
+
+        if not can_be_open and not can_be_zero_one:
+            raise Contradiction
+        elif can_be_open and not can_be_zero_one:
+            assumptions.assumed_b[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3)
+        elif not can_be_open and can_be_zero_one:
+            assumptions.assumed_b[j].adjust(ASSUMED_0_OR_1, 3)
+        else:
+            pass
 
 def check_factorization(a, b):
     report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
@@ -350,8 +416,13 @@ def check_factorization(a, b):
             tmp_assumptions = deepcopy(assumptions)
             report(2, f"Assuming a_{i} in (0,1)")
             tmp_assumptions.assumed_a[i].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3)
+
             while apply_rules(tmp_assumptions, level=3):
                 pass
+
+            # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
+            check_remaining_coeffs(tmp_assumptions, i)
+
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming a_{i} in (0,1)")
             print("", tmp_assumptions)
             return False  # comment this to see all fails for given degree
