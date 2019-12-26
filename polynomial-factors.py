@@ -261,18 +261,21 @@ def apply_rules(assumptions, recursive=True, level=1):
 
         if len(ones) == 1:
             # there is 1 in summands, all other terms must be 0
-            report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other coeffs must equal 0")
-            for i in range(max(0, k - assumptions.deg_B ), min(assumptions.deg_A, k) + 1):
-                if i != ones[0]:
-                    # a_i * b_j
-                    j = k - i
-                    product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                    if product.adjust(ASSUMED_0, level + 1):
-                        changed = True
-                    else:
-                        if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
-                          and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
-                            assumptions.additional_assumptions.append(((assumptions.assumed_a[i],assumptions.assumed_b[j]),ASSUMED_0))
+            min_i = max(0, k - assumptions.deg_B )
+            max_i =  min(assumptions.deg_A, k)
+            if max_i - min_i > 0:
+                report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other coeffs must equal 0")
+                for i in range(min_i, max_i + 1):
+                    if i != ones[0]:
+                        # a_i * b_j
+                        j = k - i
+                        product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                        if product.adjust(ASSUMED_0, level + 1):
+                            changed = True
+                        else:
+                            if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
+                              and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
+                                assumptions.additional_assumptions.append(((assumptions.assumed_a[i],assumptions.assumed_b[j]),ASSUMED_0))
 
     if not changed and recursive:
         # try if additional assumptions fall through
@@ -367,10 +370,10 @@ def check(n):
             break # uncomment this to see all fails for given degree
     return result
 
-for n in range(17, 17+1):
+for n in range(5, 25+1):
     print(f"Checking deg R={n}")
     if not check(n):
-        print("Counterexample possible for n =", n)
+        print("Counterexample not ruled out for n =", n)
     print()
 
 
