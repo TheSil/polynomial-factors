@@ -102,10 +102,10 @@ class MultipliedAssumptions2(Assumption):
             if self.a.assumed_type not in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1) \
                     or self.b.assumed_type not in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1):
                 report(level, f"{self.name} in (0,1), but {self.a} and {self.b} =>")
-                if (self.a.assumed_type == ASSUMED_1):
+                if self.a.assumed_type == ASSUMED_1:
                     # 1*b in (0,1) implies that b in (0,1)
                     return self.b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
-                elif (self.b.assumed_type == ASSUMED_1):
+                elif self.b.assumed_type == ASSUMED_1:
                     # a*1 in (0,1) implies that a in (0,1)
                     return self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1)
                 elif self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
@@ -164,10 +164,10 @@ class MultipliedAssumptions2(Assumption):
 
 class PolynomialProductAssumptions:
 
-    def __init__(self, deg_A, deg_B):
-        self.deg_A = deg_A
-        self.deg_B = deg_B
-        self.deg_C = deg_A + deg_B
+    def __init__(self, deg_p, deg_q):
+        self.deg_A = deg_p
+        self.deg_B = deg_q
+        self.deg_C = deg_p + deg_q
         self.assumed_a = []
         self.assumed_b = []
         for i in range(self.deg_A + 1 + 1):
@@ -180,6 +180,7 @@ class PolynomialProductAssumptions:
         # we can safely assume that constant coefficients are 1
         self.assumed_a[0].adjust(ASSUMED_1, 2)
         self.assumed_b[0].adjust(ASSUMED_1, 2)
+        self.additional_assumptions = []
 
     def __str__(self):
         # print all the non-trivial assumptions
@@ -199,42 +200,42 @@ def apply_rules(assumptions, recursive=True, level=1):
     # link all references in temporary instances
     assumptions.additional_assumptions = []
     for k in range(assumptions.deg_C + 1):
-        open = []
-        closed = []
-        ones = []
-        zeroes = []
-        zero_or_one = []
+        open_idxs = []
+        closed_idxs = []
+        ones_idxs = []
+        zeroes_idxs = []
+        zero_or_one_idxs = []
         for i in range(max(0, k - assumptions.deg_B), min(assumptions.deg_A, k) + 1):
             # a_i * b_j
             j = k - i
             ab_assumption = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
-            if (ab_assumption.assumed_type == ASSUMED_0):
-                zeroes.append(i)
-            elif (ab_assumption.assumed_type == ASSUMED_1):
-                ones.append(i)
-            elif (ab_assumption.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1):
-                open.append(i)
-            elif (ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1):
-                closed.append(i)
-            elif (ab_assumption.assumed_type == ASSUMED_0_OR_1):
-                zero_or_one.append(zero_or_one)
+            if ab_assumption.assumed_type == ASSUMED_0:
+                zeroes_idxs.append(i)
+            elif ab_assumption.assumed_type == ASSUMED_1:
+                ones_idxs.append(i)
+            elif ab_assumption.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                open_idxs.append(i)
+            elif ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                closed_idxs.append(i)
+            elif ab_assumption.assumed_type == ASSUMED_0_OR_1:
+                zero_or_one_idxs.append(zero_or_one_idxs)
             else:
                 raise Exception("Unknown assumed type")
 
-        if len(open) == 1:
-            if len(closed) == 0:
+        if len(open_idxs) == 1:
+            if len(closed_idxs) == 0:
                 # exactly one of summands is in (0,1) and rest gives an integer together
-                i = open[0]
+                i = open_idxs[0]
                 j = k - i
                 report(level,
                        f"Term a_{i}*b_{j} is the only non-integer coefficient at coeff [x^{k}](R(x)) => contradiction")
                 raise Contradiction()
-            elif len(closed) == 1:
+            elif len(closed_idxs) == 1:
                 # exactly one of summands is in (0,1),  rest gives an integer together EXCEPT for one coefficient
                 # then that coefficients must be in (0,1) too, which means both a_i and b_j in it must be (0,1) or 1
-                i = closed[0]
+                i = closed_idxs[0]
                 j = k - i
-                i_open = open[0]
+                i_open = open_idxs[0]
                 j_open = k - i_open
                 report(level,
                        f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the "
@@ -245,27 +246,27 @@ def apply_rules(assumptions, recursive=True, level=1):
             else:
                 # one of other summands must be in (0,1)
                 summands = []
-                for i in closed:
+                for i in closed_idxs:
                     j = k - i
                     summands.append(MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j]))
                 assumptions.additional_assumptions.append((summands, ASSUMED_OPEN_INTERVAL_0_TO_1))
 
-        if len(ones) > 1:
-            i1 = ones[0]
+        if len(ones_idxs) > 1:
+            i1 = ones_idxs[0]
             j1 = k - i1
-            i2 = ones[1]
+            i2 = ones_idxs[1]
             j2 = k - i2
             report(level, f"Coeff [x^{k}](R(x)) >= a_{i1}*b_{j1} + a_{i2}*b_{j2} >= 1 + 1 => contradiction")
             raise Contradiction()
 
-        if len(ones) == 1:
+        if len(ones_idxs) == 1:
             # there is 1 in summands, all other terms must be 0
             min_i = max(0, k - assumptions.deg_B)
             max_i = min(assumptions.deg_A, k)
             if max_i - min_i > 0:
                 report(level, f"Coeff [x^{k}](R(x)) = 1 + ... => all other terms must equal 0")
                 for i in range(min_i, max_i + 1):
-                    if i != ones[0]:
+                    if i != ones_idxs[0]:
                         # a_i * b_j
                         j = k - i
                         product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
@@ -300,7 +301,7 @@ def apply_rules(assumptions, recursive=True, level=1):
                         pass
                     report(level + 1, f"No contradiction")
                     viable.append(idx)
-                except Contradiction as e:
+                except Contradiction:
                     pass
             if len(viable) == 0:
                 # not possible
@@ -310,13 +311,13 @@ def apply_rules(assumptions, recursive=True, level=1):
             if len(viable) == 1:
                 # that one must satisfy the assumption
                 report(level, f"Exactly one possibility yields no contradiction => "
-                f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
+                              f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
                 assumed_list[viable[0]].adjust(assumed, level)
 
     return changed
 
 
-def check2(a, b):
+def check_factorization(a, b):
     report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
     poly_str = ""
     for i in range(a + 1):
@@ -339,7 +340,7 @@ def check2(a, b):
     try:
         while apply_rules(assumptions, recursive=False, level=2):
             pass
-    except Contradiction as e:
+    except Contradiction:
         return True
 
     for i in range(1, a):
@@ -354,7 +355,7 @@ def check2(a, b):
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming a_{i} in (0,1)")
             print("", tmp_assumptions)
             return False  # comment this to see all fails for given degree
-        except Contradiction as e:
+        except Contradiction:
             pass
 
         if i != a - 1:
@@ -363,11 +364,11 @@ def check2(a, b):
     return True
 
 
-def check(n):
+def check_degree(deg_r):
     result = True
-    for deg_a in range(2, n // 2 + 1):
-        deg_b = n - deg_a
-        if not check2(deg_a, deg_b):
+    for deg_a in range(2, deg_r // 2 + 1):
+        deg_b = deg_r - deg_a
+        if not check_factorization(deg_a, deg_b):
             result = False
             break  # comment this to see all fails for given degree
     return result
@@ -387,6 +388,6 @@ if __name__ == '__main__':
 
     for n in range(min_n, max_n + 1):
         print(f"Checking deg R={n}")
-        if not check(n):
+        if not check_degree(n):
             print("Counterexample not ruled out for n =", n)
         report(0, "")
