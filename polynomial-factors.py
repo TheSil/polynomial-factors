@@ -520,7 +520,7 @@ def check_factorization(a, b):
 
     contradiction_proof.print()
 
-    for i in range(1, a):
+    for i in range(1, a//2):
         # assume a_i in (0,1) for each i is the smallest with this property (hence smaller coefficients in {0,1}
         # and try to reach contradiction for EACH ONE
         tmp_proof = Proof()
