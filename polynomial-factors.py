@@ -435,6 +435,59 @@ def check_remaining_coeffs(assumptions, i, proof):
         else:
             pass
 
+
+def check_inequalities(assumptions, proof):
+    lone_idxs = {} # list of R(x) coeffs' lone terms, such as a_1+b_3
+    two_pairs_idxs = {} # list of R(x) coeffs that have exactly two terms in form a*b+c*d all from (0,1)
+    for k in range(assumptions.deg_C + 1):
+        lone_idxs[k] = []
+        pairs = []
+        non_zero = 0
+        for i in range(max(0, k - assumptions.deg_B), min(assumptions.deg_A, k) + 1):
+            # a_i * b_j
+            j = k - i
+            if assumptions.assumed_a[i].assumed_type == ASSUMED_1 and \
+                    assumptions.assumed_b[j].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                lone_idxs[k].append(('b',j))
+            elif assumptions.assumed_a[i].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and \
+                    assumptions.assumed_b[j].assumed_type == ASSUMED_1:
+                lone_idxs[k].append(('a',i))
+            elif assumptions.assumed_a[i].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and \
+                    assumptions.assumed_b[j].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                pairs.append((i,j))
+
+            if assumptions.assumed_a[i].assumed_type != ASSUMED_0 and \
+                    assumptions.assumed_b[j].assumed_type != ASSUMED_0:
+                non_zero += 1
+
+        if non_zero == len(pairs) and len(pairs) == 2:
+            # this coefficient is exactly of form a*b+c*d
+            two_pairs_idxs[k] = pairs
+
+    # try to find the inequality now
+    for k in two_pairs_idxs:
+        pairs = two_pairs_idxs[k]
+        a = pairs[0][0]
+        b = pairs[0][1]
+        c = pairs[1][0]
+        d = pairs[1][1]
+
+        for k2 in lone_idxs:
+            idxs = lone_idxs[k2]
+            if ('a',a) in idxs and ('a',c) in idxs:
+                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
+                raise Contradiction()
+            elif ('a',a) in idxs and ('b',d) in idxs:
+                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
+                raise Contradiction()
+            elif ('b',b) in idxs and ('a',c) in idxs:
+                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
+                raise Contradiction()
+            elif ('b',b) in idxs and ('b',d) in idxs:
+                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
+                raise Contradiction()
+
+
 def check_factorization(a, b):
     proof = Proof()
     proof.report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
@@ -481,6 +534,14 @@ def check_factorization(a, b):
 
             # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
             check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof)
+
+            while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
+                pass
+
+            # We still have not found a contradiction, try to find one of a from
+            # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
+            # with a,b,c,d in (0,1)
+            check_inequalities(tmp_assumptions, proof=tmp_proof)
 
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
                   f" a_{i} in (0,1) is smallest with thir property")
