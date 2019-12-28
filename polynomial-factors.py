@@ -566,7 +566,8 @@ def check_factorization(a, b):
 
 def check_degree(deg_r):
     result = True
-    for deg_a in range(2, deg_r // 2 + 1):
+    # degree of any counterexample >= 6 by paper/pencil proof
+    for deg_a in range(6, deg_r // 2 + 1):
         deg_b = deg_r - deg_a
         if not check_factorization(deg_a, deg_b):
             result = False
