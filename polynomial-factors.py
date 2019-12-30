@@ -520,7 +520,7 @@ def check_factorization(a, b):
 
     contradiction_proof.print()
 
-    for i in range(1, a//2):
+    for i in range(1, a//2 + 1):
         # assume a_i in (0,1) for each i is the smallest with this property (hence smaller coefficients in {0,1}
         # and try to reach contradiction for EACH ONE
         tmp_proof = Proof()
@@ -550,7 +550,7 @@ def check_factorization(a, b):
         except Contradiction:
             pass
 
-        if i != a - 1:
+        if i != a//2:
             try:
                 assumptions.assumed_a[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
                 assumptions.assumed_b[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
