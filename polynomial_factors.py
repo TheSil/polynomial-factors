@@ -1,5 +1,6 @@
 import argparse
 from copy import deepcopy
+from itertools import chain
 
 
 class Contradiction(Exception):
@@ -61,8 +62,8 @@ class RawAssumption(Assumption):
         if self.assumed_type == new_assumed_type:
             return False
 
-        if self.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
-            pass
+        if new_assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+            return False
 
         if new_assumed_type == ASSUMED_0_OR_1:
             if self.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
@@ -106,12 +107,16 @@ class MultipliedAssumptions2(Assumption):
         # e.g. 1*a in (0,1) implies that a in (0,1)
         if product == ASSUMED_OPEN_INTERVAL_0_TO_1:
             if self.a.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1) \
-                    and self.b.assumed_type == (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
+                    and self.b.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
                 # a in {0,1} * b in {0,1} cannot give c in (0,1)
                 proof.report(level, f"{self.name} in (0,1), but {self.a} and {self.b} => contradiction")
                 raise Contradiction()
 
             if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
+                proof.report(level, f"{self.name} in (0,1), but {self.a} and {self.b} => contradiction")
+                raise Contradiction()
+
+            if self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_0_OR_1:
                 proof.report(level, f"{self.name} in (0,1), but {self.a} and {self.b} => contradiction")
                 raise Contradiction()
 
@@ -132,11 +137,27 @@ class MultipliedAssumptions2(Assumption):
                         and self.b.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
                     # (0,1) * {0,1} in (0,1) implies second coefficient must be 1
                     return self.b.adjust(ASSUMED_1, level + 1, proof)
+                elif self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1 \
+                        and self.b.assumed_type == ASSUMED_0_OR_1:
+                    # [0,1] * {0,1} in (0,1) implies second coefficient must be 1 and first in (0,1)
+                    changed_a = self.a.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1, proof)
+                    changed_b = self.b.adjust(ASSUMED_1, level + 1, proof)
+                    return changed_a or changed_b
+                elif self.a.assumed_type == ASSUMED_0_OR_1 \
+                        and self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                    # {0,1} * [0,1] in (0,1) implies first coefficient must be 1 and second in (0,1)
+                    changed_a = self.a.adjust(ASSUMED_1, level + 1, proof)
+                    changed_b = self.b.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1, proof)
+                    return changed_a or changed_b
                 else:
                     raise Exception("Unhandled product (0,1) assumption combination")
         elif product == ASSUMED_0:
             # one of multiplicands must be 0, couple contradictions here
             if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
+                return False
+
+            if self.a.assumed_type in (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1) and \
+                self.b.assumed_type in (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1):
                 return False
 
             if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1) \
@@ -146,11 +167,62 @@ class MultipliedAssumptions2(Assumption):
 
             proof.report(level, f"{self.name} = 0, but {self.a} and {self.b} =>")
             if self.a.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-                self.b.adjust(ASSUMED_0, level + 1, proof)
-            if self.b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
-                self.a.adjust(ASSUMED_0, level + 1, proof)
+                return self.b.adjust(ASSUMED_0, level + 1, proof)
+            elif self.b.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1):
+                return self.a.adjust(ASSUMED_0, level + 1, proof)
+            else:
+                raise Exception("Unhandled product (0) assumption combination")
+        elif product == ASSUMED_0_OR_1:
+            if self.assumed_type in (ASSUMED_0, ASSUMED_1, ASSUMED_0_OR_1):
+                return False
+
+            if self.assumed_type in (ASSUMED_OPEN_INTERVAL_0_TO_1,):
+                proof.report(level, f"{self.name} in {{0,1}}, but {self} => contradiction")
+                raise Contradiction()
+
+            if self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1 \
+                and self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                return False
+
+            proof.report(level, f"{self.name} in {{0,1}}, but {self.a} and {self.b} =>")
+            if self.a.assumed_type == ASSUMED_1 and self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                return self.b.adjust(ASSUMED_0_OR_1, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_1:
+                return self.a.adjust(ASSUMED_0_OR_1, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                return self.b.adjust(ASSUMED_0, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                return self.a.adjust(ASSUMED_0, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
+                return self.a.adjust(ASSUMED_0, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_0_OR_1:
+                return self.b.adjust(ASSUMED_0, level + 1, proof)
+            elif self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                return False
+            elif self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_0_OR_1:
+                return False
+            else:
+                raise Exception("Unhandled product {0,1} assumption combination")
+
+        elif product == ASSUMED_CLOSED_INTERVAL_0_TO_1:
+            # everything is in [0,1]
+            return False
+
+        elif product == ASSUMED_1:
+            if ASSUMED_OPEN_INTERVAL_0_TO_1 in (self.a.assumed_type, self.b.assumed_type):
+                raise Contradiction()
+            if ASSUMED_0 in (self.a.assumed_type, self.b.assumed_type):
+                raise Contradiction()
+            if self.a.assumed_type == ASSUMED_1 and \
+                self.b.assumed_type in (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1):
+                self.b.adjust(ASSUMED_1, level + 1, proof)
+                return True
+            if self.b.assumed_type == ASSUMED_1 and \
+                self.a.assumed_type in (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1):
+                self.a.adjust(ASSUMED_1, level + 1, proof)
+                return True
+
         else:
-            # TODO: remaining product types
             raise Exception("Unsupported multiplication output type")
 
         return False
@@ -163,10 +235,8 @@ class MultipliedAssumptions2(Assumption):
             return self.b.assumed_type
         if self.b.assumed_type == ASSUMED_1:
             return self.a.assumed_type
-        if self.a.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
-            return self.b.assumed_type
-        if self.b.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
-            return self.a.assumed_type
+        if ASSUMED_CLOSED_INTERVAL_0_TO_1 in (self.a.assumed_type, self.b.assumed_type):
+            return ASSUMED_CLOSED_INTERVAL_0_TO_1
         if self.a.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and self.b.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
             return ASSUMED_OPEN_INTERVAL_0_TO_1
         if self.a.assumed_type == ASSUMED_0_OR_1 and self.b.assumed_type == ASSUMED_0_OR_1:
@@ -236,11 +306,30 @@ def apply_rules(assumptions, level, proof, recursive=True):
             elif ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
                 closed_idxs.append(i)
             elif ab_assumption.assumed_type == ASSUMED_0_OR_1:
-                zero_or_one_idxs.append(zero_or_one_idxs)
+                zero_or_one_idxs.append(i)
             else:
                 raise Exception("Unknown assumed type")
 
+        if len(closed_idxs) == 1 and len(open_idxs) == 0 and len(ones_idxs) ==0 and len(zero_or_one_idxs)==0:
+            # exactly one term, it must be in {0,1}
+            i = closed_idxs[0]
+            j = k - i
+            proof.report(level,
+                         f"At coeff [x^{k}](R(x)), term a_{i}*b_{j} in [0,1] is the only non-zero term "
+                         f"=> a_{i}*b_{j} in {{0,1}}")
+            product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+            if product.adjust(ASSUMED_0_OR_1, level + 1, proof):
+                changed = True
+
         if len(open_idxs) == 1:
+            if len(zero_or_one_idxs) > 0:
+                # all of these muse be zero
+                for i in zero_or_one_idxs:
+                    j = k - i
+                    product = MultipliedAssumptions2(assumptions.assumed_a[i], assumptions.assumed_b[j])
+                    if product.adjust(ASSUMED_0, level + 1, proof):
+                        changed = True
+
             if len(closed_idxs) == 0:
                 # exactly one of summands is in (0,1) and rest gives an integer together
                 i = open_idxs[0]
@@ -383,11 +472,11 @@ def check_remaining_coeffs(assumptions, i, proof):
             raise Contradiction
         elif can_be_open and not can_be_zero_one:
             proof.append(proof2)
-            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) =>")
+            proof.report(3, f"Coefficient a_{j} cannot be in {{0,1}} =>")
             assumptions.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof)
         elif not can_be_open and can_be_zero_one:
             proof.append(proof1)
-            proof.report(3, f"Coefficient a_{j} cannot be in {{0,1}} =>")
+            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) =>")
             assumptions.assumed_a[j].adjust(ASSUMED_0_OR_1, 3, proof)
         else:
             pass
@@ -425,11 +514,11 @@ def check_remaining_coeffs(assumptions, i, proof):
             raise Contradiction
         elif can_be_open and not can_be_zero_one:
             proof.append(proof2)
-            proof.report(3, f"Coefficient b_{j} cannot be in (0,1) =>")
+            proof.report(3, f"Coefficient b_{j} cannot be in {{0,1}} =>")
             assumptions.assumed_b[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof)
         elif not can_be_open and can_be_zero_one:
             proof.append(proof1)
-            proof.report(3, f"Coefficient b_{j} cannot be in {{0,1}} =>")
+            proof.report(3, f"Coefficient b_{j} cannot be in (0,1) =>")
             assumptions.assumed_b[j].adjust(ASSUMED_0_OR_1, 3, proof)
         else:
             pass
@@ -629,7 +718,7 @@ def check_factorization(a, b):
                 while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
                     pass
 
-                # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
+                  # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
                 check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof)
 
                 while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
@@ -643,12 +732,12 @@ def check_factorization(a, b):
                 # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
                 # check where the both possibilities lead to
                 if check_01_coeffs(tmp_assumptions, proof=tmp_proof):
-                    changed = True
+                   changed = True
 
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
-                  f" a_{i} in (0,1) is smallest with thir property")
+                  f" a_{i} in (0,1) is smallest with this property")
             print("", tmp_assumptions)
-            #return False  # comment this to see all fails for given degree
+            return False  # comment this to see all fails for given degree
         except Contradiction:
             pass
 
@@ -673,7 +762,7 @@ def check_degree(deg_r):
         deg_b = deg_r - deg_a
         if not check_factorization(deg_a, deg_b):
             result = False
-            #break  # comment this to see all fails for given degree
+            break  # comment this to see all fails for given degree
     return result
 
 
