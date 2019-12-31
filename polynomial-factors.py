@@ -347,7 +347,6 @@ def apply_rules(assumptions, level, proof, recursive=True):
                 assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
                 proof.append(assumption_proof)
 
-
     return changed
 
 def check_remaining_coeffs(assumptions, i, proof):
@@ -435,6 +434,100 @@ def check_remaining_coeffs(assumptions, i, proof):
         else:
             pass
 
+
+def check_01_coeffs(assumptions, proof):
+    changed = False
+    for j in range(1, assumptions.deg_A):
+        if assumptions.assumed_a[j].assumed_type == ASSUMED_0_OR_1:
+            can_be_one = False
+            can_be_zero = False
+
+            proof1 = Proof()
+            proof2 = Proof()
+            try:
+                tmp_assumptions2 = deepcopy(assumptions)
+                proof1.report(3, f"Assuming a_{j} = 0")
+                tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0, 3, proof1)
+                while apply_rules(tmp_assumptions2, level=3, proof=proof1):
+                    pass
+                can_be_zero = True
+            except Contradiction:
+                pass
+
+            try:
+                tmp_assumptions2 = deepcopy(assumptions)
+                proof2.report(3, f"Assuming_a_{j} = 1")
+                tmp_assumptions2.assumed_a[j].adjust(ASSUMED_1, 3, proof2)
+                while apply_rules(tmp_assumptions2, level=3, proof=proof2):
+                    pass
+                can_be_one = True
+            except Contradiction:
+                pass
+
+            if not can_be_one and not can_be_zero:
+                proof.append(proof1)
+                proof.append(proof2)
+                proof.report(3, f"Coefficient a_{j} in {{0,1}} cannot be in neither 0 nor 1 => contradiction")
+                raise Contradiction
+            elif can_be_one and not can_be_zero:
+                proof.append(proof2)
+                proof.report(3, f"oefficient a_{j} in {{0,1}} cannot be 0 =>")
+                if assumptions.assumed_a[j].adjust(ASSUMED_1, 3, proof):
+                    changed = True
+            elif not can_be_one and can_be_zero:
+                proof.append(proof1)
+                proof.report(3, f"Coefficient a_{j} in {{0,1}} cannot be 1 =>")
+                if assumptions.assumed_a[j].adjust(ASSUMED_0, 3, proof):
+                    changed = True
+            else:
+                pass
+
+    for j in range(1, assumptions.deg_B):
+        if assumptions.assumed_b[j].assumed_type == ASSUMED_0_OR_1:
+            can_be_one = False
+            can_be_zero = False
+
+            proof1 = Proof()
+            proof2 = Proof()
+            try:
+                tmp_assumptions2 = deepcopy(assumptions)
+                proof1.report(3, f"Assuming b_{j} = 0")
+                tmp_assumptions2.assumed_b[j].adjust(ASSUMED_0, 3, proof1)
+                while apply_rules(tmp_assumptions2, level=3, proof=proof1):
+                    pass
+                can_be_zero = True
+            except Contradiction:
+                pass
+
+            try:
+                tmp_assumptions2 = deepcopy(assumptions)
+                proof2.report(3, f"Assuming b_{j} = 1")
+                tmp_assumptions2.assumed_b[j].adjust(ASSUMED_1, 3, proof2)
+                while apply_rules(tmp_assumptions2, level=3, proof=proof2):
+                    pass
+                can_be_one = True
+            except Contradiction:
+                pass
+
+            if not can_be_one and not can_be_zero:
+                proof.append(proof1)
+                proof.append(proof2)
+                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be in neither 0 nor 1 => contradiction")
+                raise Contradiction
+            elif can_be_one and not can_be_zero:
+                proof.append(proof2)
+                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be 0 =>")
+                if assumptions.assumed_b[j].adjust(ASSUMED_1, 3, proof):
+                    changed = True
+            elif not can_be_one and can_be_zero:
+                proof.append(proof1)
+                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be 1 =>")
+                if assumptions.assumed_b[j].adjust(ASSUMED_0, 3, proof):
+                    changed = True
+            else:
+                pass
+
+    return changed
 
 def check_inequalities(assumptions, proof):
     lone_idxs = {} # list of R(x) coeffs' lone terms, such as a_1+b_3
@@ -529,24 +622,33 @@ def check_factorization(a, b):
             tmp_proof.report(2, f"Assuming {i} is the smallest with a_{i} in (0,1)")
             tmp_assumptions.assumed_a[i].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, tmp_proof)
 
-            while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                pass
+            changed = True
+            while changed:
+                changed = False
 
-            # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
-            check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof)
+                while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
+                    pass
 
-            while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                pass
+                # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
+                check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof)
 
-            # We still have not found a contradiction, try to find one of a from
-            # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
-            # with a,b,c,d in (0,1)
-            check_inequalities(tmp_assumptions, proof=tmp_proof)
+                while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
+                    pass
+
+                # We still have not found a contradiction, try to find one of a from
+                # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
+                # with a,b,c,d in (0,1)
+                check_inequalities(tmp_assumptions, proof=tmp_proof)
+
+                # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
+                # check where the both possibilities lead to
+                if check_01_coeffs(tmp_assumptions, proof=tmp_proof):
+                    changed = True
 
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
                   f" a_{i} in (0,1) is smallest with thir property")
             print("", tmp_assumptions)
-            return False  # comment this to see all fails for given degree
+            #return False  # comment this to see all fails for given degree
         except Contradiction:
             pass
 
@@ -571,7 +673,7 @@ def check_degree(deg_r):
         deg_b = deg_r - deg_a
         if not check_factorization(deg_a, deg_b):
             result = False
-            break  # comment this to see all fails for given degree
+            #break  # comment this to see all fails for given degree
     return result
 
 
