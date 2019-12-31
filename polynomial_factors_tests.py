@@ -12,36 +12,68 @@ class RawAssumptionsTestCase(unittest.TestCase):
     def test_adjust_returns_correct(self):
         proof = DummyProof()
 
-        assumption = RawAssumption(ASSUMED_CLOSED_INTERVAL_0_TO_1, 'test')
-        self.assertEqual(False, assumption.adjust(ASSUMED_CLOSED_INTERVAL_0_TO_1, 1, proof))
-        self.assertEqual(True, assumption.adjust(ASSUMED_0_OR_1, 1, proof))
-        self.assertEqual(True, assumption.adjust(ASSUMED_0, 1, proof))
-        self.assertEqual(False, assumption.adjust(ASSUMED_0_OR_1, 1, proof))
-        self.assertEqual(False, assumption.adjust(ASSUMED_CLOSED_INTERVAL_0_TO_1, 1, proof))
+        test_combs = [
+            (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, False ),
+            (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_OPEN_INTERVAL_0_TO_1, True),
+            (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0, True),
+            (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_1, True),
+            (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1, True),
 
-    def test_adjust_throws_correct(self):
-        proof = DummyProof()
+            (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, False),
+            (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_OPEN_INTERVAL_0_TO_1, False),
+            (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_0, Contradiction),
+            (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_1, Contradiction),
+            (ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_0_OR_1, Contradiction),
 
-        assumption = RawAssumption(ASSUMED_0, 'test')
-        with self.assertRaises(Contradiction):
-            assumption.adjust(ASSUMED_1, 1, proof)
+            (ASSUMED_0, ASSUMED_CLOSED_INTERVAL_0_TO_1, False),
+            (ASSUMED_0, ASSUMED_OPEN_INTERVAL_0_TO_1, Contradiction),
+            (ASSUMED_0, ASSUMED_0, False),
+            (ASSUMED_0, ASSUMED_1, Contradiction),
+            (ASSUMED_0, ASSUMED_0_OR_1, False),
 
+            (ASSUMED_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, False),
+            (ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, Contradiction),
+            (ASSUMED_1, ASSUMED_0, Contradiction),
+            (ASSUMED_1, ASSUMED_1, False),
+            (ASSUMED_1, ASSUMED_0_OR_1, False),
+
+            (ASSUMED_0_OR_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, False),
+            (ASSUMED_0_OR_1, ASSUMED_OPEN_INTERVAL_0_TO_1, Contradiction),
+            (ASSUMED_0_OR_1, ASSUMED_0, True),
+            (ASSUMED_0_OR_1, ASSUMED_1, True),
+            (ASSUMED_0_OR_1, ASSUMED_0_OR_1, False),
+        ]
+
+        for input_type, output_type, result in test_combs:
+            assumption = RawAssumption(input_type, 'test1')
+            if result is Contradiction:
+              with self.assertRaises(Contradiction):
+                  assumption.adjust(output_type, 1, proof)
+            else:
+                self.assertEqual(result, assumption.adjust(output_type, 1, proof))
+                if result: # change has occurred
+                    self.assertEqual(output_type, assumption.assumed_type)
+                else: # no change
+                    self.assertEqual(input_type, assumption.assumed_type)
 
     def test_adjust_name_correct(self):
         assumption = RawAssumption(ASSUMED_0, 'test')
         self.assertEqual("test", assumption.name)
-        self.assertEqual("test = 0", str(assumption))
 
-    def test_assumed_type_correct(self):
-        assumption = RawAssumption(ASSUMED_0, 'test')
-        self.assertEqual(ASSUMED_0, assumption.assumed_type)
-        assumption = RawAssumption(ASSUMED_1, 'test')
-        self.assertEqual(ASSUMED_1, assumption.assumed_type)
+    def test_init_type_correct(self):
+        test_types = [(ASSUMED_CLOSED_INTERVAL_0_TO_1, "test in [0,1]"),
+                      (ASSUMED_OPEN_INTERVAL_0_TO_1, "test in (0,1)"),
+                      (ASSUMED_0, "test = 0"),
+                      (ASSUMED_1, "test = 1"),
+                      (ASSUMED_0_OR_1, "test in {0,1}")]
+
+        for type, expected_name in test_types:
+            assumption = RawAssumption(type, 'test')
+            self.assertEqual(type, assumption.assumed_type)
+            self.assertEqual(expected_name, str(assumption))
 
 class MultipliedAssumptionsTestCase(unittest.TestCase):
     def test_assumed_type_correct(self):
-        proof = DummyProof()
-
         test_combs = [
             (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1 ),
             (ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1),
@@ -221,12 +253,6 @@ class MultipliedAssumptionsTestCase(unittest.TestCase):
                             self.assertEqual(op1, assumption1.assumed_type)
                         if op2 != -1:
                             self.assertEqual(op2, assumption2.assumed_type)
-
-
-
-
-
-
 
 
 if __name__ == '__main__':

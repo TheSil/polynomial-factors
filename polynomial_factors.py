@@ -1,6 +1,5 @@
 import argparse
 from copy import deepcopy
-from itertools import chain
 
 
 class Contradiction(Exception):
