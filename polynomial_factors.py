@@ -435,6 +435,12 @@ def apply_rules(assumptions, level, proof, recursive=True):
                 assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
                 proof.append(assumption_proof)
 
+    if not changed:
+        # We still have not found a contradiction, try to find one of a from
+        # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
+        # with a,b,c,d in (0,1)
+        check_inequalities(assumptions, proof)
+
     return changed
 
 def check_remaining_coeffs(assumptions, i, proof):
@@ -722,11 +728,6 @@ def check_factorization(a, b):
 
                 while apply_rules(tmp_assumptions, level=3, proof=tmp_proof):
                     pass
-
-                # We still have not found a contradiction, try to find one of a from
-                # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
-                # with a,b,c,d in (0,1)
-                check_inequalities(tmp_assumptions, proof=tmp_proof)
 
                 # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
                 # check where the both possibilities lead to
