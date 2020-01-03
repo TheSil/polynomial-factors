@@ -446,7 +446,8 @@ def apply_rules(assumptions, level, proof, recursive=True):
 def check_remaining_coeffs(assumptions, i, proof):
     for j in range(i+1, assumptions.deg_A):
         can_be_open = False
-        can_be_zero_one = False
+        can_be_zero = False
+        can_be_one = False
 
         proof1 = Proof()
         proof2 = Proof()
@@ -462,24 +463,42 @@ def check_remaining_coeffs(assumptions, i, proof):
 
         try:
             tmp_assumptions2 = deepcopy(assumptions)
-            proof2.report(3, f"Assuming a_{j} in {{0, 1}}")
-            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0_OR_1, 3, proof2)
+            proof2.report(3, f"Assuming a_{j} = 0")
+            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0, 3, proof2)
             while apply_rules(tmp_assumptions2, level=3, proof=proof2):
                 pass
-            can_be_zero_one = True
+            can_be_zero = True
         except Contradiction:
             pass
 
-        if not can_be_open and not can_be_zero_one:
+        try:
+            tmp_assumptions2 = deepcopy(assumptions)
+            proof2.report(3, f"Assuming a_{j} = 1")
+            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_1, 3, proof2)
+            while apply_rules(tmp_assumptions2, level=3, proof=proof2):
+                pass
+            can_be_one = True
+        except Contradiction:
+            pass
+
+        if not can_be_open and not can_be_zero and not can_be_one:
             proof.append(proof1)
             proof.append(proof2)
             proof.report(3, f"Coefficient a_{j} cannot be in neither (0,1) nor {{0,1}} => contradiction")
             raise Contradiction
-        elif can_be_open and not can_be_zero_one:
+        elif can_be_open and not can_be_zero and not can_be_one:
             proof.append(proof2)
             proof.report(3, f"Coefficient a_{j} cannot be in {{0,1}} =>")
             assumptions.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof)
-        elif not can_be_open and can_be_zero_one:
+        elif not can_be_open and can_be_zero and not can_be_one:
+            proof.append(proof1)
+            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) nor 1 =>")
+            assumptions.assumed_a[j].adjust(ASSUMED_0, 3, proof)
+        elif not can_be_open and not can_be_zero and can_be_one:
+            proof.append(proof1)
+            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) nor 0 =>")
+            assumptions.assumed_a[j].adjust(ASSUMED_1, 3, proof)
+        elif not can_be_open and can_be_zero and can_be_one:
             proof.append(proof1)
             proof.report(3, f"Coefficient a_{j} cannot be in (0,1) =>")
             assumptions.assumed_a[j].adjust(ASSUMED_0_OR_1, 3, proof)
