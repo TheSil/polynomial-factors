@@ -1,5 +1,5 @@
 import unittest
-from polynomial_factors import *
+from expressions import *
 
 class DummyProof:
     def __init__(self):
@@ -45,7 +45,7 @@ class RawAssumptionsTestCase(unittest.TestCase):
         ]
 
         for input_type, output_type, result in test_combs:
-            assumption = RawAssumption(input_type, 'test1')
+            assumption = Variable(input_type, 'test1')
             if result is Contradiction:
               with self.assertRaises(Contradiction):
                   assumption.adjust(output_type, 1, proof)
@@ -57,7 +57,7 @@ class RawAssumptionsTestCase(unittest.TestCase):
                     self.assertEqual(input_type, assumption.assumed_type)
 
     def test_adjust_name_correct(self):
-        assumption = RawAssumption(ASSUMED_0, 'test')
+        assumption = Variable(ASSUMED_0, 'test')
         self.assertEqual("test", assumption.name)
 
     def test_init_type_correct(self):
@@ -68,7 +68,7 @@ class RawAssumptionsTestCase(unittest.TestCase):
                       (ASSUMED_0_OR_1, "test in {0,1}")]
 
         for type, expected_name in test_types:
-            assumption = RawAssumption(type, 'test')
+            assumption = Variable(type, 'test')
             self.assertEqual(type, assumption.assumed_type)
             self.assertEqual(expected_name, str(assumption))
 
@@ -97,12 +97,12 @@ class MultipliedAssumptionsTestCase(unittest.TestCase):
         ]
 
         for type1, type2, result in test_combs:
-            assumption1 = RawAssumption(type1, 'test1')
-            assumption2 = RawAssumption(type2, 'test2')
-            product1 = MultipliedAssumptions2(assumption1, assumption2)
+            assumption1 = Variable(type1, 'test1')
+            assumption2 = Variable(type2, 'test2')
+            product1 = Multiplication(assumption1, assumption2)
             self.assertEqual(result, product1.assumed_type)
             # should be commutative
-            product2 = MultipliedAssumptions2(assumption2, assumption1)
+            product2 = Multiplication(assumption2, assumption1)
             self.assertEqual(result, product2.assumed_type)
 
     def test_adjust_correct(self):
@@ -240,9 +240,9 @@ class MultipliedAssumptionsTestCase(unittest.TestCase):
             for new_product_type, result, op1_base, op2_base in test_vectors:
                 for (type1, type2, op1, op2) in ((type1_base, type2_base, op1_base, op2_base ),
                                                  (type2_base, type1_base, op2_base, op1_base)):
-                    assumption1 = RawAssumption(type1, 'test1')
-                    assumption2 = RawAssumption(type2, 'test2')
-                    product = MultipliedAssumptions2(assumption1, assumption2)
+                    assumption1 = Variable(type1, 'test1')
+                    assumption2 = Variable(type2, 'test2')
+                    product = Multiplication(assumption1, assumption2)
                     if result is Contradiction:
                         with self.assertRaises(Contradiction):
                             product.adjust(new_product_type, 1, proof)
