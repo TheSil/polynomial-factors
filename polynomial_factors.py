@@ -1,8 +1,8 @@
 import argparse
 from copy import deepcopy
 from expressions import Variable, ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, \
-    ASSUMED_0_OR_1
-from rules import basic_rules, check_remaining_coeffs, check_01_coeffs, check_terms
+    ASSUMED_0_OR_1, assumed_type_str
+from rules import basic_rules, check_remaining_coeffs, check_01_coeffs, check_terms, check_inequalities
 from contradiction import Contradiction
 from proof import Proof
 import proof
@@ -42,6 +42,85 @@ class PolynomialProductAssumptions:
         return res
 
 
+def apply_all_rules(assumptions, proof, level, recursive=True):
+
+    changed = True
+    while changed:
+        changed = False
+
+        assumptions.additional_assumptions = []
+
+        while basic_rules(assumptions, level=level, proof=proof):
+            pass
+
+        # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
+        if not changed:
+            if check_remaining_coeffs(assumptions, 1, proof=proof):
+                changed = True
+
+        # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
+        # check where the both possibilities lead to
+        if not changed:
+            if check_01_coeffs(assumptions, proof=proof):
+                changed = True
+
+        if not changed:
+            if check_terms(assumptions, proof=proof):
+                changed = True
+
+        if not changed:
+            # We still have not found a contradiction, try to find one of a from
+            # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
+            # with a,b,c,d in (0,1)
+            if check_inequalities(assumptions, proof):
+                changed = True
+
+        if not changed and recursive:
+            if assumptions.additional_assumptions:
+                print(len(assumptions.additional_assumptions))
+
+            # try if additional assumptions fall through
+            for idx_assumptions, (assumed_list, assumed) in enumerate(assumptions.additional_assumptions):
+                # at least one of the items in assumed list must be as said "assumed", try them one by one
+                viable = []
+                msg = ""
+                for idx, assumption in enumerate(assumed_list):
+                    msg += assumption.name + " "
+                    msg += assumed_type_str(assumed)
+                    if idx != len(assumed_list) - 1:
+                        msg += " or "
+                assumption_proof = Proof()
+                assumption_proof.report(level, msg)
+                for idx, assumption in enumerate(assumed_list):
+                    tmp_assumptions = deepcopy(assumptions)
+                    tmp_proof = Proof()
+                    try:
+                        # since this is a copy, we need to link to its objects!
+                        assumption_copy = tmp_assumptions.additional_assumptions[idx_assumptions][0][idx]
+                        assumption_copy.additional_assumptions = []
+                        tmp_proof.report(level, f"Assuming {assumption_copy.name} {assumed_type_str(assumed)}")
+                        assumption_copy.adjust(assumed, level + 1, tmp_proof)
+                        apply_all_rules(tmp_assumptions, level=level + 1, proof=tmp_proof, recursive=False)
+                        # proof += report(level + 1, f"No contradiction")
+                        viable.append(idx)
+                    except Contradiction:
+                        assumption_proof.append(tmp_proof)
+                        pass
+                if len(viable) == 0:
+                    # not possible
+                    assumption_proof.report(level, "All possibilities lead to contradiction => contradiction")
+                    proof.append(assumption_proof)
+                    raise Contradiction()
+
+                if len(viable) == 1:
+                    # that one must satisfy the assumption
+                    assumption_proof.report(level, f"Exactly one possibility yields no contradiction => "
+                    f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
+                    assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
+                    proof.append(assumption_proof)
+
+
+
 def check_factorization(a, b):
     proof = Proof()
     proof.report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
@@ -66,8 +145,7 @@ def check_factorization(a, b):
 
     contradiction_proof = Proof()
     try:
-        while basic_rules(assumptions, recursive=False, level=2, proof=contradiction_proof):
-            pass
+        apply_all_rules(assumptions, contradiction_proof, 3)
     except Contradiction:
         contradiction_proof.print()
         return True
@@ -83,27 +161,7 @@ def check_factorization(a, b):
             tmp_proof.report(2, f"Assuming {i} is the smallest with a_{i} in (0,1)")
             tmp_assumptions.assumed_a[i].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, tmp_proof)
 
-            changed = True
-            while changed:
-                changed = False
-
-                while basic_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                    pass
-
-                # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
-                if check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof):
-                    changed = True
-
-                while basic_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                    pass
-
-                # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
-                # check where the both possibilities lead to
-                if check_01_coeffs(tmp_assumptions, proof=tmp_proof):
-                    changed = True
-
-                if check_terms(tmp_assumptions, proof=tmp_proof):
-                    changed = True
+            apply_all_rules(tmp_assumptions, tmp_proof, 3)
 
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
                   f" a_{i} in (0,1) is smallest with this property")

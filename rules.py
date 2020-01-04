@@ -12,11 +12,10 @@ from proof import Proof
 # - rules should not ideally recursively call any of the other rules, instead they should put their potential assumptions out
 #   and let the outer engine try to find the contradictions
 
-def basic_rules(assumptions, level, proof, recursive=True):
+def basic_rules(assumptions, level, proof):
     changed = False
     # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
     # link all references in temporary instances
-    assumptions.additional_assumptions = []
     for k in range(assumptions.deg_r + 1):
         open_idxs = []
         closed_idxs = []
@@ -125,61 +124,13 @@ def basic_rules(assumptions, level, proof, recursive=True):
                     proof.append(tmp_proof)
                     changed = True
 
-    if not changed and recursive:
-        # try if additional assumptions fall through
-        for idx_assumptions, (assumed_list, assumed) in enumerate(assumptions.additional_assumptions):
-            # at least one of the items in assumed list must be as said "assumed", try them one by one
-            viable = []
-            msg = ""
-            for idx, assumption in enumerate(assumed_list):
-                msg += assumption.name + " "
-                msg += assumed_type_str(assumed)
-                if idx != len(assumed_list) - 1:
-                    msg += " or "
-            assumption_proof = Proof()
-            assumption_proof.report(level, msg)
-            for idx, assumption in enumerate(assumed_list):
-                tmp_assumptions = deepcopy(assumptions)
-                tmp_proof = Proof()
-                try:
-                    # since this is a copy, we need to link to its objects!
-                    assumption_copy = tmp_assumptions.additional_assumptions[idx_assumptions][0][idx]
-                    tmp_proof.report(level, f"Assuming {assumption_copy.name} {assumed_type_str(assumed)}")
-                    assumption_copy.adjust(assumed, level + 1, tmp_proof)
-                    while basic_rules(tmp_assumptions, recursive=False, level=level + 1, proof=tmp_proof):
-                        pass
-                    # proof += report(level + 1, f"No contradiction")
-                    viable.append(idx)
-                except Contradiction:
-                    assumption_proof.append(tmp_proof)
-                    pass
-            if len(viable) == 0:
-                # not possible
-                assumption_proof.report(level, "All possibilities lead to contradiction => contradiction")
-                proof.append(assumption_proof)
-                raise Contradiction()
-
-            if len(viable) == 1:
-                # that one must satisfy the assumption
-                assumption_proof.report(level, f"Exactly one possibility yields no contradiction => "
-                f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
-                assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
-                proof.append(assumption_proof)
-
-    if not changed:
-        # We still have not found a contradiction, try to find one of a from
-        # 1 = [x^k]R(x) = a*b + c*d < a+b+.... = [x^l]R(x) = 1
-        # with a,b,c,d in (0,1)
-        check_inequalities(assumptions, proof)
-
     return changed
 
-
+# TODO: remove dependency on basic_rules
 def check_terms(assumptions, proof):
     changed = False
     # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
     # link all references in temporary instances
-    assumptions.additional_assumptions = []
     for k in range(assumptions.deg_r + 1):
         open_idxs = []
         closed_idxs = []
@@ -284,7 +235,7 @@ def check_terms(assumptions, proof):
 
     return changed
 
-
+# TODO: remove dependency on basic_rules
 def check_remaining_coeffs(assumptions, i, proof):
     changed = False
     for j in range(i + 1, assumptions.deg_p):
@@ -429,7 +380,7 @@ def check_remaining_coeffs(assumptions, i, proof):
 
     return changed
 
-
+# TODO: remove dependency on basic_rules
 def check_01_coeffs(assumptions, proof):
     changed = False
     for j in range(1, assumptions.deg_p):
@@ -579,3 +530,6 @@ def check_inequalities(assumptions, proof):
                 proof.report(3,
                              f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
                 raise Contradiction()
+
+    # leads only to contradictions, no change
+    return False
