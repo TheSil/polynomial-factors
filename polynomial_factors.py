@@ -1,12 +1,45 @@
 import argparse
 from copy import deepcopy
-from itertools import chain
-from expressions import PolynomialProductAssumptions, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1
+from expressions import Variable, ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, \
+    ASSUMED_0_OR_1
 from rules import basic_rules, check_remaining_coeffs, check_01_coeffs, check_terms
 from contradiction import Contradiction
 from proof import Proof
 import proof
 
+
+class PolynomialProductAssumptions:
+
+    def __init__(self, deg_p, deg_q):
+        self.deg_p = deg_p
+        self.deg_q = deg_q
+        self.deg_r = deg_p + deg_q
+        self.assumed_a = []
+        self.assumed_b = []
+        for i in range(self.deg_p + 1 + 1):
+            self.assumed_a.append(Variable(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"a_{i}"))
+        for i in range(self.deg_q + 1 + 1):
+            self.assumed_b.append(Variable(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"b_{i}"))
+        init_proof = Proof()
+        # monic polynomials
+        self.assumed_a[self.deg_p].adjust(ASSUMED_1, 2, init_proof)
+        self.assumed_b[self.deg_q].adjust(ASSUMED_1, 2, init_proof)
+        # we can safely assume that constant coefficients are 1
+        self.assumed_a[0].adjust(ASSUMED_1, 2, init_proof)
+        self.assumed_b[0].adjust(ASSUMED_1, 2, init_proof)
+        init_proof.print()
+        self.additional_assumptions = []
+
+    def __str__(self):
+        # print all the non-trivial assumptions
+        res = ""
+        for i in range(1, self.deg_p):
+            if self.assumed_a[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                res += f"{self.assumed_a[i]}, "
+        for i in range(1, self.deg_q):
+            if self.assumed_b[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
+                res += f"{self.assumed_b[i]}, "
+        return res
 
 
 def check_factorization(a, b):
@@ -41,7 +74,7 @@ def check_factorization(a, b):
 
     contradiction_proof.print()
 
-    for i in range(1, a//2 + 1):
+    for i in range(1, a // 2 + 1):
         # assume a_i in (0,1) for each i is the smallest with this property (hence smaller coefficients in {0,1}
         # and try to reach contradiction for EACH ONE
         tmp_proof = Proof()
@@ -57,7 +90,7 @@ def check_factorization(a, b):
                 while basic_rules(tmp_assumptions, level=3, proof=tmp_proof):
                     pass
 
-                  # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
+                # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
                 if check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof):
                     changed = True
 
@@ -67,19 +100,19 @@ def check_factorization(a, b):
                 # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
                 # check where the both possibilities lead to
                 if check_01_coeffs(tmp_assumptions, proof=tmp_proof):
-                   changed = True
+                    changed = True
 
                 if check_terms(tmp_assumptions, proof=tmp_proof):
-                   changed = True
+                    changed = True
 
             print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
                   f" a_{i} in (0,1) is smallest with this property")
             print("", tmp_assumptions)
-            #return False  # comment this to see all fails for given degree
+            # return False  # comment this to see all fails for given degree
         except Contradiction:
             pass
 
-        if i != a//2:
+        if i != a // 2:
             try:
                 assumptions.assumed_a[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
                 assumptions.assumed_b[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
@@ -100,7 +133,7 @@ def check_degree(deg_r):
         deg_b = deg_r - deg_a
         if not check_factorization(deg_a, deg_b):
             result = False
-            #break  # comment this to see all fails for given degree
+            # break  # comment this to see all fails for given degree
     return result
 
 
@@ -120,5 +153,5 @@ if __name__ == '__main__':
         print(f"Checking deg R={n}")
         if not check_degree(n):
             print("Counterexample not ruled out for n =", n)
-        #print()
-        #report(0, "")
+        # print()
+        # report(0, "")

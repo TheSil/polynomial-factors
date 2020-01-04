@@ -1,5 +1,6 @@
 report_enabled = True
 
+
 class Proof:
     def __init__(self):
         self.msg = ""
@@ -17,4 +18,3 @@ class Proof:
         global report_enabled
         if report_enabled:
             print(self.msg.rstrip())
-

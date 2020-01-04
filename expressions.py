@@ -1,5 +1,4 @@
 from contradiction import Contradiction
-from proof import Proof
 
 
 ASSUMED_CLOSED_INTERVAL_0_TO_1 = 1
@@ -218,74 +217,3 @@ class Multiplication(AssumedExpression):
     def __str__(self):
         return self.name + " " + assumed_type_str(self.assumed_type)
 
-
-class PolynomialProductAssumptions:
-
-    def __init__(self, deg_p, deg_q):
-        self.deg_p = deg_p
-        self.deg_q = deg_q
-        self.deg_r = deg_p + deg_q
-        self.assumed_a = []
-        self.assumed_b = []
-        for i in range(self.deg_p + 1 + 1):
-            self.assumed_a.append(Variable(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"a_{i}"))
-        for i in range(self.deg_q + 1 + 1):
-            self.assumed_b.append(Variable(ASSUMED_CLOSED_INTERVAL_0_TO_1, f"b_{i}"))
-        init_proof = Proof()
-        # monic polynomials
-        self.assumed_a[self.deg_p].adjust(ASSUMED_1, 2, init_proof)
-        self.assumed_b[self.deg_q].adjust(ASSUMED_1, 2, init_proof)
-        # we can safely assume that constant coefficients are 1
-        self.assumed_a[0].adjust(ASSUMED_1, 2, init_proof)
-        self.assumed_b[0].adjust(ASSUMED_1, 2, init_proof)
-        init_proof.print()
-        self.additional_assumptions = []
-
-    def __str__(self):
-        # print all the non-trivial assumptions
-        res = ""
-        for i in range(1, self.deg_p):
-            if self.assumed_a[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
-                res += f"{self.assumed_a[i]}, "
-        for i in range(1, self.deg_q):
-            if self.assumed_b[i].assumed_type != ASSUMED_CLOSED_INTERVAL_0_TO_1:
-                res += f"{self.assumed_b[i]}, "
-        return res
-
-# following are rules that adjust the assumptions (and eventually should reach contradiction)
-# - each rule should create assumptions copy as necessary, and should eventually output additional possible assumptions
-# - rules should not ideally recursively call any of the other rules, instead they should put their potential assumptions out
-#   and let the outer engine try to find the contradictions
-
-def basic_rules(assumptions, level, proof, recursive=True):
-    changed = False
-    # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
-    # link all references in temporary instances
-    assumptions.additional_assumptions = []
-    for k in range(assumptions.deg_r + 1):
-        open_idxs = []
-        closed_idxs = []
-        ones_idxs = []
-        zeroes_idxs = []
-        zero_or_one_idxs = []
-        for i in range(max(0, k - assumptions.deg_q), min(assumptions.deg_p, k) + 1):
-            # a_i * b_j
-            j = k - i
-            ab_assumption = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
-            if ab_assumption.assumed_type == ASSUMED_0:
-                zeroes_idxs.append(i)
-            elif ab_assumption.assumed_type == ASSUMED_1:
-                ones_idxs.append(i)
-            elif ab_assumption.assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
-                open_idxs.append(i)
-            elif ab_assumption.assumed_type == ASSUMED_CLOSED_INTERVAL_0_TO_1:
-                closed_idxs.append(i)
-            elif ab_assumption.assumed_type == ASSUMED_0_OR_1:
-                zero_or_one_idxs.append(i)
-            else:
-                raise Exception("Unknown assumed type")
-
-        if len(closed_idxs) == 1 and len(open_idxs) == 0 and len(ones_idxs) ==0 and len(zero_or_one_idxs)==0:
-            # exactly one term, it must be in {0,1}
-            i = closed_idxs[0]
-            j = k - i

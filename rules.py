@@ -1,7 +1,8 @@
 from copy import deepcopy
 from itertools import chain
-from expressions import Multiplication, PolynomialProductAssumptions, assumed_type_str
-from expressions import ASSUMED_0, ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, ASSUMED_0_OR_1
+from expressions import Multiplication, assumed_type_str
+from expressions import ASSUMED_0, ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSUMED_CLOSED_INTERVAL_0_TO_1, \
+    ASSUMED_0_OR_1
 from contradiction import Contradiction
 from proof import Proof
 
@@ -39,7 +40,7 @@ def basic_rules(assumptions, level, proof, recursive=True):
             else:
                 raise Exception("Unknown assumed type")
 
-        if len(closed_idxs) == 1 and len(open_idxs) == 0 and len(ones_idxs) ==0 and len(zero_or_one_idxs)==0:
+        if len(closed_idxs) == 1 and len(open_idxs) == 0 and len(ones_idxs) == 0 and len(zero_or_one_idxs) == 0:
             # exactly one term, it must be in {0,1}
             i = closed_idxs[0]
             j = k - i
@@ -64,7 +65,7 @@ def basic_rules(assumptions, level, proof, recursive=True):
                 i = open_idxs[0]
                 j = k - i
                 proof.report(level,
-                       f"Term a_{i}*b_{j} is the only non-integer term at coeff [x^{k}](R(x)) => contradiction")
+                             f"Term a_{i}*b_{j} is the only non-integer term at coeff [x^{k}](R(x)) => contradiction")
                 raise Contradiction()
             elif len(closed_idxs) == 1:
                 # exactly one of summands is in (0,1),  rest gives an integer together EXCEPT for one coefficient
@@ -74,8 +75,8 @@ def basic_rules(assumptions, level, proof, recursive=True):
                 i_open = open_idxs[0]
                 j_open = k - i_open
                 proof.report(level,
-                       f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the "
-                       f"only possible non-integer term  => a_{i}*b_{j} in (0,1)")
+                             f"At coeff [x^{k}](R(x)), term a_{i_open}*b_{j_open} in (0,1) and a_{i}*b_{j} in [0,1] is the "
+                             f"only possible non-integer term  => a_{i}*b_{j} in (0,1)")
                 product = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
                 if product.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, level + 1, proof):
                     changed = True
@@ -147,7 +148,7 @@ def basic_rules(assumptions, level, proof, recursive=True):
                     assumption_copy.adjust(assumed, level + 1, tmp_proof)
                     while basic_rules(tmp_assumptions, recursive=False, level=level + 1, proof=tmp_proof):
                         pass
-                    #proof += report(level + 1, f"No contradiction")
+                    # proof += report(level + 1, f"No contradiction")
                     viable.append(idx)
                 except Contradiction:
                     assumption_proof.append(tmp_proof)
@@ -161,7 +162,7 @@ def basic_rules(assumptions, level, proof, recursive=True):
             if len(viable) == 1:
                 # that one must satisfy the assumption
                 assumption_proof.report(level, f"Exactly one possibility yields no contradiction => "
-                              f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
+                f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
                 assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
                 proof.append(assumption_proof)
 
@@ -172,6 +173,7 @@ def basic_rules(assumptions, level, proof, recursive=True):
         check_inequalities(assumptions, proof)
 
     return changed
+
 
 def check_terms(assumptions, proof):
     changed = False
@@ -285,7 +287,7 @@ def check_terms(assumptions, proof):
 
 def check_remaining_coeffs(assumptions, i, proof):
     changed = False
-    for j in range(i+1, assumptions.deg_p):
+    for j in range(i + 1, assumptions.deg_p):
         can_be_open = False
         can_be_zero = False
         can_be_one = False
@@ -355,7 +357,7 @@ def check_remaining_coeffs(assumptions, i, proof):
         else:
             pass
 
-    for j in range(i+1, assumptions.deg_q):
+    for j in range(i + 1, assumptions.deg_q):
         can_be_open = False
         can_be_zero = False
         can_be_one = False
@@ -392,7 +394,6 @@ def check_remaining_coeffs(assumptions, i, proof):
             can_be_one = True
         except Contradiction:
             pass
-
 
         if not can_be_open and not can_be_zero and not can_be_one:
             proof.append(proof1)
@@ -523,9 +524,10 @@ def check_01_coeffs(assumptions, proof):
 
     return changed
 
+
 def check_inequalities(assumptions, proof):
-    lone_idxs = {} # list of R(x) coeffs' lone terms, such as a_1+b_3
-    two_pairs_idxs = {} # list of R(x) coeffs that have exactly two terms in form a*b+c*d all from (0,1)
+    lone_idxs = {}  # list of R(x) coeffs' lone terms, such as a_1+b_3
+    two_pairs_idxs = {}  # list of R(x) coeffs that have exactly two terms in form a*b+c*d all from (0,1)
     for k in range(assumptions.deg_r + 1):
         lone_idxs[k] = []
         pairs = []
@@ -535,13 +537,13 @@ def check_inequalities(assumptions, proof):
             j = k - i
             if assumptions.assumed_a[i].assumed_type == ASSUMED_1 and \
                     assumptions.assumed_b[j].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
-                lone_idxs[k].append(('b',j))
+                lone_idxs[k].append(('b', j))
             elif assumptions.assumed_a[i].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and \
                     assumptions.assumed_b[j].assumed_type == ASSUMED_1:
-                lone_idxs[k].append(('a',i))
+                lone_idxs[k].append(('a', i))
             elif assumptions.assumed_a[i].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1 and \
                     assumptions.assumed_b[j].assumed_type == ASSUMED_OPEN_INTERVAL_0_TO_1:
-                pairs.append((i,j))
+                pairs.append((i, j))
 
             if assumptions.assumed_a[i].assumed_type != ASSUMED_0 and \
                     assumptions.assumed_b[j].assumed_type != ASSUMED_0:
@@ -561,110 +563,19 @@ def check_inequalities(assumptions, proof):
 
         for k2 in lone_idxs:
             idxs = lone_idxs[k2]
-            if ('a',a) in idxs and ('a',c) in idxs:
-                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
+            if ('a', a) in idxs and ('a', c) in idxs:
+                proof.report(3,
+                             f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
                 raise Contradiction()
-            elif ('a',a) in idxs and ('b',d) in idxs:
-                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
+            elif ('a', a) in idxs and ('b', d) in idxs:
+                proof.report(3,
+                             f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < a_{a}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
                 raise Contradiction()
-            elif ('b',b) in idxs and ('a',c) in idxs:
-                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
+            elif ('b', b) in idxs and ('a', c) in idxs:
+                proof.report(3,
+                             f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+a_{c} + ... = [x^{k2}]R(x) = 1 => contradiction")
                 raise Contradiction()
-            elif ('b',b) in idxs and ('b',d) in idxs:
-                proof.report(3, f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
+            elif ('b', b) in idxs and ('b', d) in idxs:
+                proof.report(3,
+                             f"1=[x^{k}]R(x) = a_{a}b_{b}+a_{c}b_{d} < b_{b}+b_{d} + ... = [x^{k2}]R(x) = 1 => contradiction")
                 raise Contradiction()
-
-
-def check_factorization(a, b):
-    proof = Proof()
-    proof.report(1, f"Assuming R(x)=P(x)Q(x) with deg P={a}, deg Q={b}")
-    poly_str = ""
-    for i in range(a + 1):
-        poly_str += f"a_{i}"
-        if i != 0:
-            poly_str += f"*x^{i}"
-        if i != a:
-            poly_str += "+"
-    proof.report(1, f"P(x)={poly_str}")
-    poly_str = ""
-    for i in range(b + 1):
-        poly_str += f"b_{i}"
-        if i != 0:
-            poly_str += f"*x^{i}"
-        if i != b:
-            poly_str += "+"
-    proof.report(1, f"Q(x)={poly_str}")
-    proof.print()
-    assumptions = PolynomialProductAssumptions(a, b)
-
-    contradiction_proof = Proof()
-    try:
-        while basic_rules(assumptions, recursive=False, level=2, proof=contradiction_proof):
-            pass
-    except Contradiction:
-        contradiction_proof.print()
-        return True
-
-    contradiction_proof.print()
-
-    for i in range(1, a//2 + 1):
-        # assume a_i in (0,1) for each i is the smallest with this property (hence smaller coefficients in {0,1}
-        # and try to reach contradiction for EACH ONE
-        tmp_proof = Proof()
-        try:
-            tmp_assumptions = deepcopy(assumptions)
-            tmp_proof.report(2, f"Assuming {i} is the smallest with a_{i} in (0,1)")
-            tmp_assumptions.assumed_a[i].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, tmp_proof)
-
-            changed = True
-            while changed:
-                changed = False
-
-                while basic_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                    pass
-
-                  # Failed to find contradiction, try separate (0,1) vs {0,1} cases for the other coefficients
-                if check_remaining_coeffs(tmp_assumptions, i, proof=tmp_proof):
-                    changed = True
-
-                while basic_rules(tmp_assumptions, level=3, proof=tmp_proof):
-                    pass
-
-                # still no contradiction... iterate over a_i/b_i which must be in {0,1} and
-                # check where the both possibilities lead to
-                if check_01_coeffs(tmp_assumptions, proof=tmp_proof):
-                   changed = True
-
-                if check_terms(tmp_assumptions, proof=tmp_proof):
-                   changed = True
-
-            print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
-                  f" a_{i} in (0,1) is smallest with this property")
-            print("", tmp_assumptions)
-            #return False  # comment this to see all fails for given degree
-        except Contradiction:
-            pass
-
-        if i != a//2:
-            try:
-                assumptions.assumed_a[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
-                assumptions.assumed_b[i].adjust(ASSUMED_0_OR_1, 2, tmp_proof)
-            except Contradiction:
-                # probably b_i cannot be 0 or 1, which means we can end it here
-                # all higher a_i's will cause the same contradiction
-                return True
-
-        tmp_proof.print()
-
-    return True
-
-
-def check_degree(deg_r):
-    result = True
-    # degree of any counterexample >= 6 by paper/pencil proof
-    for deg_a in range(6, deg_r // 2 + 1):
-        deg_b = deg_r - deg_a
-        if not check_factorization(deg_a, deg_b):
-            result = False
-            #break  # comment this to see all fails for given degree
-    return result
