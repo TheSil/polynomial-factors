@@ -6,6 +6,92 @@ from expressions import ASSUMED_0, ASSUMED_1, ASSUMED_OPEN_INTERVAL_0_TO_1, ASSU
 from contradiction import Contradiction
 from proof import Proof
 
+class ConditionChecker:
+    pass
+
+class CoeffConditionChecker(ConditionChecker):
+
+    coeff_a = 0
+    coeff_b = 1
+
+    def __init__(self, coeff_type, coeff_index, check_type):
+        self.coeff_type = coeff_type
+        self.coeff_index = coeff_index
+        self.check_type = check_type
+
+    def check(self, assumptions, proof, level, rules_checker):
+        if self.coeff_type == self.coeff_a:
+            proof.report(level, f"Assuming a_{self.coeff_index} {assumed_type_str(self.check_type)}")
+            assumptions.assumed_a[self.coeff_index].adjust(self.check_type, level + 1, proof)
+        else:
+            proof.report(level, f"Assuming b_{self.coeff_index} {assumed_type_str(self.check_type)}")
+            assumptions.assumed_b[self.coeff_index].adjust(self.check_type, level + 1, proof)
+
+class ProductConditionChecker(ConditionChecker):
+
+    def __init__(self, coeff_a_index, coeff_b_index, check_type):
+        self.coeff_a_index = coeff_a_index
+        self.coeff_b_index = coeff_b_index
+        self.check_type = check_type
+
+    def check(self, assumptions, proof, level, rules_checker):
+        multi = Multiplication(assumptions.assumed_a[self.coeff_a_index], assumptions.assumed_b[self.coeff_b_index])
+        multi.adjust(self.check_type, level + 1, proof)
+
+        if rules_checker:
+            rules_checker(assumptions, level=level + 1, proof=proof)
+
+
+class OrConditionChecker(ConditionChecker):
+
+    def __init__(self):
+        self.conditions = []
+
+    def add(self, condition):
+        self.conditions.append(condition)
+
+    def check(self, assumptions, proof, level, rules_checker):
+        viable = []
+        msg = ""
+        # for idx, assumption in enumerate(assumed_list):
+        #     msg += assumption.name + " "
+        #     msg += assumed_type_str(assumed)
+        #     if idx != len(assumed_list) - 1:
+        #         msg += " or "
+        assumption_proof = Proof()
+        assumption_proof.report(level, msg)
+        for idx, condition in enumerate(self.conditions):
+            tmp_assumptions = deepcopy(assumptions)
+            tmp_proof = Proof()
+            try:
+                # since this is a copy, we need to link to its objects!
+                #tmp_proof.report(level, f"Assuming {assumption_copy.name} {assumed_type_str(assumed)}")
+                condition.check(tmp_assumptions, tmp_proof, level+1, None)
+                rules_checker(tmp_assumptions, level=level + 1, proof=tmp_proof)
+                # proof += report(level + 1, f"No contradiction")
+                viable.append(idx)
+            except Contradiction:
+                assumption_proof.append(tmp_proof)
+                pass
+        if len(viable) == 0:
+            # not possible
+            assumption_proof.report(level, "All possibilities lead to contradiction => contradiction")
+            proof.append(assumption_proof)
+            raise Contradiction()
+
+        if len(viable) == 1:
+            # that one must satisfy the assumption
+            assumption_proof.report(level, f"Exactly one possibility yields no contradiction => ")
+            #f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
+            self.conditions[viable[0]].check(assumptions, assumption_proof, level + 1, None)
+            rules_checker(assumptions, level=level + 1, proof=assumption_proof)
+            proof.append(assumption_proof)
+
+
+class AndConditionChecker(ConditionChecker):
+    pass
+
+
 
 # following are rules that adjust the assumptions (and eventually should reach contradiction)
 # - each rule should create assumptions copy as necessary, and should eventually output additional possible assumptions
@@ -81,11 +167,11 @@ def basic_rules(assumptions, level, proof):
                     changed = True
             else:
                 # one of other summands must be in (0,1)
-                summands = []
+                condition = OrConditionChecker()
                 for i in closed_idxs:
                     j = k - i
-                    summands.append(Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j]))
-                assumptions.additional_assumptions.append((summands, ASSUMED_OPEN_INTERVAL_0_TO_1))
+                    condition.add(ProductConditionChecker(i,j, ASSUMED_OPEN_INTERVAL_0_TO_1 ))
+                assumptions.additional_assumptions.append(condition)
 
         if len(ones_idxs) > 1:
             i1 = ones_idxs[0]
@@ -115,7 +201,7 @@ def basic_rules(assumptions, level, proof):
                                 if assumptions.assumed_a[i].assumed_type != ASSUMED_0 \
                                         and assumptions.assumed_b[j].assumed_type != ASSUMED_0:
                                     assumptions.additional_assumptions.append(
-                                        ((assumptions.assumed_a[i], assumptions.assumed_b[j]), ASSUMED_0))
+                                        ProductConditionChecker(i, j, ASSUMED_0))
                 except Contradiction:
                     proof.append(tmp_proof)
                     raise
@@ -126,7 +212,6 @@ def basic_rules(assumptions, level, proof):
 
     return changed
 
-# TODO: remove dependency on basic_rules
 def check_terms(assumptions, proof):
     changed = False
     # additional assumptions need to be kept in side assumptions, so that deepcopy will correctly
@@ -157,321 +242,50 @@ def check_terms(assumptions, proof):
         for i in chain(closed_idxs, zero_or_one_idxs):
             j = k - i
 
-            can_be_open = False
-            can_be_zero = False
-            can_be_one = False
-
-            proof1 = Proof()
-            proof2 = Proof()
-            proof3 = Proof()
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof1.report(3, f"Assuming a_{i}b_{j} in (0,1)")
-                ab_assumption = Multiplication(tmp_assumptions2.assumed_a[i], tmp_assumptions2.assumed_b[j])
-                ab_assumption.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof1)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof1):
-                    pass
-                can_be_open = True
-            except Contradiction:
-                pass
-
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof2.report(3, f"Assuming a_{i}b_{j} = 0")
-                ab_assumption = Multiplication(tmp_assumptions2.assumed_a[i], tmp_assumptions2.assumed_b[j])
-                ab_assumption.adjust(ASSUMED_0, 3, proof2)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof2):
-                    pass
-                can_be_zero = True
-            except Contradiction:
-                pass
-
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof3.report(3, f"Assuming a_{i}b_{j} = 1")
-                ab_assumption = Multiplication(tmp_assumptions2.assumed_a[i], tmp_assumptions2.assumed_b[j])
-                ab_assumption.adjust(ASSUMED_1, 3, proof3)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof3):
-                    pass
-                can_be_one = True
-            except Contradiction:
-                pass
-
-            if not can_be_open and not can_be_zero and not can_be_one:
-                proof.append(proof1)
-                proof.append(proof2)
-                proof.append(proof3)
-                proof.report(3, f"Coefficient a_{i}b_{j} cannot be in neither (0,1) nor {{0,1}} => contradiction")
-                raise Contradiction
-            elif can_be_open and not can_be_zero and not can_be_one:
-                proof.append(proof2)
-                proof.append(proof3)
-                proof.report(3, f"Coefficient a_{i}b_{j} cannot be in {{0,1}} =>")
-                ab_assumption = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if ab_assumption.adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof):
-                    changed = True
-            elif not can_be_open and can_be_zero and not can_be_one:
-                proof.append(proof1)
-                proof.append(proof3)
-                proof.report(3, f"Coefficient a_{i}b_{j} cannot be in (0,1) nor 1 =>")
-                ab_assumption = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if ab_assumption.adjust(ASSUMED_0, 3, proof):
-                    changed = True
-            elif not can_be_open and not can_be_zero and can_be_one:
-                proof.append(proof1)
-                proof.append(proof2)
-                proof.report(3, f"Coefficient a_{i}b_{j} cannot be in (0,1) nor 0 =>")
-                ab_assumption = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if ab_assumption.adjust(ASSUMED_1, 3, proof):
-                    changed = True
-            elif not can_be_open and can_be_zero and can_be_one:
-                proof.append(proof1)
-                proof.report(3, f"Coefficient a_{i}b_{j} cannot be in (0,1) =>")
-                ab_assumption = Multiplication(assumptions.assumed_a[i], assumptions.assumed_b[j])
-                if ab_assumption.adjust(ASSUMED_0_OR_1, 3, proof):
-                    changed = True
-            else:
-                pass
+            # TODO: could be exclusive OR, how would that differ?
+            condition = OrConditionChecker()
+            condition.add(ProductConditionChecker(i, j, ASSUMED_OPEN_INTERVAL_0_TO_1))
+            condition.add(ProductConditionChecker(i, j, ASSUMED_0))
+            condition.add(ProductConditionChecker(i, j, ASSUMED_1))
+            assumptions.additional_assumptions.append(condition)
 
     return changed
 
-# TODO: remove dependency on basic_rules
 def check_remaining_coeffs(assumptions, i, proof):
     changed = False
     for j in range(i + 1, assumptions.deg_p):
-        can_be_open = False
-        can_be_zero = False
-        can_be_one = False
-
-        proof1 = Proof()
-        proof2 = Proof()
-        proof3 = Proof()
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof1.report(3, f"Assuming a_{j} in (0,1)")
-            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof1)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof1):
-                pass
-            can_be_open = True
-        except Contradiction:
-            pass
-
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof2.report(3, f"Assuming a_{j} = 0")
-            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0, 3, proof2)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof2):
-                pass
-            can_be_zero = True
-        except Contradiction:
-            pass
-
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof3.report(3, f"Assuming a_{j} = 1")
-            tmp_assumptions2.assumed_a[j].adjust(ASSUMED_1, 3, proof3)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof3):
-                pass
-            can_be_one = True
-        except Contradiction:
-            pass
-
-        if not can_be_open and not can_be_zero and not can_be_one:
-            proof.append(proof1)
-            proof.append(proof2)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient a_{j} cannot be in neither (0,1) nor {{0,1}} => contradiction")
-            raise Contradiction
-        elif can_be_open and not can_be_zero and not can_be_one:
-            proof.append(proof2)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient a_{j} cannot be in {{0,1}} =>")
-            if assumptions.assumed_a[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof):
-                changed = True
-        elif not can_be_open and can_be_zero and not can_be_one:
-            proof.append(proof1)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) nor 1 =>")
-            if assumptions.assumed_a[j].adjust(ASSUMED_0, 3, proof):
-                changed = True
-        elif not can_be_open and not can_be_zero and can_be_one:
-            proof.append(proof1)
-            proof.append(proof2)
-            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) nor 0 =>")
-            if assumptions.assumed_a[j].adjust(ASSUMED_1, 3, proof):
-                changed = True
-        elif not can_be_open and can_be_zero and can_be_one:
-            proof.append(proof1)
-            proof.report(3, f"Coefficient a_{j} cannot be in (0,1) =>")
-            if assumptions.assumed_a[j].adjust(ASSUMED_0_OR_1, 3, proof):
-                changed = True
-        else:
-            pass
+        # TODO: could be exclusive OR, how would that differ?
+        condition = OrConditionChecker()
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_a, j, ASSUMED_OPEN_INTERVAL_0_TO_1))
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_a, j, ASSUMED_0))
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_a, j, ASSUMED_1))
+        assumptions.additional_assumptions.append(condition)
 
     for j in range(i + 1, assumptions.deg_q):
-        can_be_open = False
-        can_be_zero = False
-        can_be_one = False
-
-        proof1 = Proof()
-        proof2 = Proof()
-        proof3 = Proof()
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof1.report(3, f"Assuming b_{j} in (0,1)")
-            tmp_assumptions2.assumed_b[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof1)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof1):
-                pass
-            can_be_open = True
-        except Contradiction:
-            pass
-
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof2.report(3, f"Assuming b_{j} = 0")
-            tmp_assumptions2.assumed_b[j].adjust(ASSUMED_0, 3, proof2)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof2):
-                pass
-            can_be_zero = True
-        except Contradiction:
-            pass
-
-        try:
-            tmp_assumptions2 = deepcopy(assumptions)
-            proof3.report(3, f"Assuming b_{j} = 1")
-            tmp_assumptions2.assumed_b[j].adjust(ASSUMED_1, 3, proof3)
-            while basic_rules(tmp_assumptions2, level=3, proof=proof3):
-                pass
-            can_be_one = True
-        except Contradiction:
-            pass
-
-        if not can_be_open and not can_be_zero and not can_be_one:
-            proof.append(proof1)
-            proof.append(proof2)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient b_{j} cannot be in neither (0,1) nor {{0,1}} => contradiction")
-            raise Contradiction
-        elif can_be_open and not can_be_zero and not can_be_one:
-            proof.append(proof2)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient b_{j} cannot be in {{0,1}} =>")
-            if assumptions.assumed_b[j].adjust(ASSUMED_OPEN_INTERVAL_0_TO_1, 3, proof):
-                changed = True
-        elif not can_be_open and can_be_zero and not can_be_one:
-            proof.append(proof1)
-            proof.append(proof3)
-            proof.report(3, f"Coefficient b_{j} cannot be in (0,1) nor 1 =>")
-            if assumptions.assumed_b[j].adjust(ASSUMED_0, 3, proof):
-                changed = True
-        elif not can_be_open and not can_be_zero and can_be_one:
-            proof.append(proof1)
-            proof.append(proof2)
-            proof.report(3, f"Coefficient b_{j} cannot be in (0,1) nor 0 =>")
-            if assumptions.assumed_b[j].adjust(ASSUMED_1, 3, proof):
-                changed = True
-        elif not can_be_open and can_be_zero and can_be_one:
-            proof.append(proof1)
-            proof.report(3, f"Coefficient b_{j} cannot be in (0,1) =>")
-            if assumptions.assumed_b[j].adjust(ASSUMED_0_OR_1, 3, proof):
-                changed = True
-        else:
-            pass
+        # TODO: could be exclusive OR, how would that differ?
+        condition = OrConditionChecker()
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_b, j, ASSUMED_OPEN_INTERVAL_0_TO_1))
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_b, j, ASSUMED_0))
+        condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_b, j, ASSUMED_1))
+        assumptions.additional_assumptions.append(condition)
 
     return changed
 
-# TODO: remove dependency on basic_rules
 def check_01_coeffs(assumptions, proof):
     changed = False
     for j in range(1, assumptions.deg_p):
         if assumptions.assumed_a[j].assumed_type == ASSUMED_0_OR_1:
-            can_be_one = False
-            can_be_zero = False
-
-            proof1 = Proof()
-            proof2 = Proof()
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof1.report(3, f"Assuming a_{j} = 0")
-                tmp_assumptions2.assumed_a[j].adjust(ASSUMED_0, 3, proof1)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof1):
-                    pass
-                can_be_zero = True
-            except Contradiction:
-                pass
-
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof2.report(3, f"Assuming_a_{j} = 1")
-                tmp_assumptions2.assumed_a[j].adjust(ASSUMED_1, 3, proof2)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof2):
-                    pass
-                can_be_one = True
-            except Contradiction:
-                pass
-
-            if not can_be_one and not can_be_zero:
-                proof.append(proof1)
-                proof.append(proof2)
-                proof.report(3, f"Coefficient a_{j} in {{0,1}} cannot be in neither 0 nor 1 => contradiction")
-                raise Contradiction
-            elif can_be_one and not can_be_zero:
-                proof.append(proof2)
-                proof.report(3, f"oefficient a_{j} in {{0,1}} cannot be 0 =>")
-                if assumptions.assumed_a[j].adjust(ASSUMED_1, 3, proof):
-                    changed = True
-            elif not can_be_one and can_be_zero:
-                proof.append(proof1)
-                proof.report(3, f"Coefficient a_{j} in {{0,1}} cannot be 1 =>")
-                if assumptions.assumed_a[j].adjust(ASSUMED_0, 3, proof):
-                    changed = True
-            else:
-                pass
+            condition = OrConditionChecker()
+            condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_a, j, ASSUMED_0))
+            condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_a, j, ASSUMED_1))
+            assumptions.additional_assumptions.append(condition)
 
     for j in range(1, assumptions.deg_q):
         if assumptions.assumed_b[j].assumed_type == ASSUMED_0_OR_1:
-            can_be_one = False
-            can_be_zero = False
-
-            proof1 = Proof()
-            proof2 = Proof()
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof1.report(3, f"Assuming b_{j} = 0")
-                tmp_assumptions2.assumed_b[j].adjust(ASSUMED_0, 3, proof1)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof1):
-                    pass
-                can_be_zero = True
-            except Contradiction:
-                pass
-
-            try:
-                tmp_assumptions2 = deepcopy(assumptions)
-                proof2.report(3, f"Assuming b_{j} = 1")
-                tmp_assumptions2.assumed_b[j].adjust(ASSUMED_1, 3, proof2)
-                while basic_rules(tmp_assumptions2, level=3, proof=proof2):
-                    pass
-                can_be_one = True
-            except Contradiction:
-                pass
-
-            if not can_be_one and not can_be_zero:
-                proof.append(proof1)
-                proof.append(proof2)
-                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be in neither 0 nor 1 => contradiction")
-                raise Contradiction
-            elif can_be_one and not can_be_zero:
-                proof.append(proof2)
-                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be 0 =>")
-                if assumptions.assumed_b[j].adjust(ASSUMED_1, 3, proof):
-                    changed = True
-            elif not can_be_one and can_be_zero:
-                proof.append(proof1)
-                proof.report(3, f"Coefficient b_{j} in {{0,1}} cannot be 1 =>")
-                if assumptions.assumed_b[j].adjust(ASSUMED_0, 3, proof):
-                    changed = True
-            else:
-                pass
+            condition = OrConditionChecker()
+            condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_b, j, ASSUMED_0))
+            condition.add(CoeffConditionChecker(CoeffConditionChecker.coeff_b, j, ASSUMED_1))
+            assumptions.additional_assumptions.append(condition)
 
     return changed
 

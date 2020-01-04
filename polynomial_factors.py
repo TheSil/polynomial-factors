@@ -42,6 +42,18 @@ class PolynomialProductAssumptions:
         return res
 
 
+# class CoeffCondition:
+#     coeff_a = 0
+#     coeff_b = 1
+#
+#     def __init__(self, coeff_type, coeff_index):
+#         self.coeff_type = coeff_type
+#         self.coeff_index = coeff_index
+
+def apply_all_rules_nonrecursive(assumptions, proof, level):
+    return apply_all_rules(assumptions, proof, level, recursive=False)
+
+
 def apply_all_rules(assumptions, proof, level, recursive=True):
 
     changed = True
@@ -76,48 +88,8 @@ def apply_all_rules(assumptions, proof, level, recursive=True):
                 changed = True
 
         if not changed and recursive:
-            if assumptions.additional_assumptions:
-                print(len(assumptions.additional_assumptions))
-
-            # try if additional assumptions fall through
-            for idx_assumptions, (assumed_list, assumed) in enumerate(assumptions.additional_assumptions):
-                # at least one of the items in assumed list must be as said "assumed", try them one by one
-                viable = []
-                msg = ""
-                for idx, assumption in enumerate(assumed_list):
-                    msg += assumption.name + " "
-                    msg += assumed_type_str(assumed)
-                    if idx != len(assumed_list) - 1:
-                        msg += " or "
-                assumption_proof = Proof()
-                assumption_proof.report(level, msg)
-                for idx, assumption in enumerate(assumed_list):
-                    tmp_assumptions = deepcopy(assumptions)
-                    tmp_proof = Proof()
-                    try:
-                        # since this is a copy, we need to link to its objects!
-                        assumption_copy = tmp_assumptions.additional_assumptions[idx_assumptions][0][idx]
-                        assumption_copy.additional_assumptions = []
-                        tmp_proof.report(level, f"Assuming {assumption_copy.name} {assumed_type_str(assumed)}")
-                        assumption_copy.adjust(assumed, level + 1, tmp_proof)
-                        apply_all_rules(tmp_assumptions, level=level + 1, proof=tmp_proof, recursive=False)
-                        # proof += report(level + 1, f"No contradiction")
-                        viable.append(idx)
-                    except Contradiction:
-                        assumption_proof.append(tmp_proof)
-                        pass
-                if len(viable) == 0:
-                    # not possible
-                    assumption_proof.report(level, "All possibilities lead to contradiction => contradiction")
-                    proof.append(assumption_proof)
-                    raise Contradiction()
-
-                if len(viable) == 1:
-                    # that one must satisfy the assumption
-                    assumption_proof.report(level, f"Exactly one possibility yields no contradiction => "
-                    f"{assumed_list[viable[0]].name} {assumed_type_str(assumed)}")
-                    assumed_list[viable[0]].adjust(assumed, level, assumption_proof)
-                    proof.append(assumption_proof)
+            for condition_check in assumptions.additional_assumptions:
+                condition_check.check(assumptions, proof=proof, level=level+1, rules_checker=apply_all_rules_nonrecursive)
 
 
 
