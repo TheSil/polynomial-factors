@@ -135,10 +135,10 @@ def check_factorization(a, b):
 
             apply_all_rules(tmp_assumptions, tmp_proof, 3)
 
-            print(f" Failed to find contradiction for n={n},a={a},b={b} when assuming"
+            print(f"Failed to find contradiction for n={n},a={a},b={b} when assuming"
                   f" a_{i} in (0,1) is smallest with this property")
             print("", tmp_assumptions)
-            # return False  # comment this to see all fails for given degree
+            return False  # comment this to see all fails for given degree
         except Contradiction:
             pass
 
@@ -163,7 +163,7 @@ def check_degree(deg_r):
         deg_b = deg_r - deg_a
         if not check_factorization(deg_a, deg_b):
             result = False
-            # break  # comment this to see all fails for given degree
+            break  # comment this to see all fails for given degree
     return result
 
 
@@ -180,8 +180,9 @@ if __name__ == '__main__':
     proof.report_enabled = args.verbose
 
     for n in range(min_n, max_n + 1):
-        print(f"Checking deg R={n}")
-        if not check_degree(n):
-            print("Counterexample not ruled out for n =", n)
+        print(f"Checking deg R={n} ... ", end="")
+        if check_degree(n):
+            print("Contradiction found, counterexample impossible")
+
         # print()
         # report(0, "")
